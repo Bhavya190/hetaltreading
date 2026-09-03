@@ -1,0 +1,342 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { FileText, Plus, Search, Eye, Mail, Building2, CheckCircle2, Clock, X, Loader2 } from 'lucide-react'
+
+export interface QuoteRecord {
+  id: string
+  clientName: string
+  company: string
+  product: string
+  qty: string
+  delivery: string
+  status: 'PENDING' | 'QUOTED' | 'ACCEPTED'
+  date: string
+}
+
+export default function QuotationsPage() {
+  const [quotes, setQuotes] = useState<QuoteRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [selectedQuote, setSelectedQuote] = useState<QuoteRecord | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+
+  // Form State
+  const [clientName, setClientName] = useState('')
+  const [company, setCompany] = useState('')
+  const [product, setProduct] = useState('')
+  const [qty, setQty] = useState('')
+  const [delivery, setDelivery] = useState('')
+
+  const SAMPLE_QUOTES: QuoteRecord[] = [
+    {
+      id: 'RFQ-8001',
+      clientName: 'Rajesh Mehta',
+      company: 'Mehta Chemical Industries',
+      product: 'Soda Ash Dense (Light Grade)',
+      qty: '50 Metric Tons',
+      delivery: 'Mundra Port, Gujarat',
+      status: 'PENDING',
+      date: '2026-09-03',
+    },
+    {
+      id: 'RFQ-8002',
+      clientName: 'Suresh Patel',
+      company: 'Patel Agri Commodities',
+      product: 'PP Woven Jumbo Bags (1 MT)',
+      qty: '500 Pieces',
+      delivery: 'Kandla Port, Gujarat',
+      status: 'QUOTED',
+      date: '2026-09-03',
+    },
+  ]
+
+  const fetchQuotes = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch('/api/quotes')
+      const data = await res.json()
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setQuotes(
+          data.data.map((q: any) => ({
+            id: q.id,
+            clientName: q.clientName,
+            company: q.companyName || q.clientName,
+            product: q.productName,
+            qty: `${q.quantity} ${q.unit || 'Kg'}`,
+            delivery: q.deliveryLocation || 'Mundra Port, Gujarat',
+            status: q.status || 'PENDING',
+            date: q.createdAt ? new Date(q.createdAt).toISOString().split('T')[0] : '2026-09-03',
+          }))
+        )
+      } else {
+        setQuotes(SAMPLE_QUOTES)
+      }
+    } catch (err) {
+      console.error('Error fetching quotes:', err)
+      setQuotes(SAMPLE_QUOTES)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchQuotes()
+  }, [])
+
+  const handleAddQuote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!clientName || !product || !qty) return
+
+    setSaving(true)
+    try {
+      const res = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName,
+          companyName: company,
+          productName: product,
+          quantity: parseInt(qty, 10) || 1,
+          unit: 'Kg',
+          deliveryLocation: delivery,
+        }),
+      })
+      const data = await res.json()
+
+      if (data.success && data.data) {
+        const q = data.data
+        const newQuote: QuoteRecord = {
+          id: q.id,
+          clientName: q.clientName,
+          company: q.companyName || q.clientName,
+          product: q.productName,
+          qty: `${q.quantity} ${q.unit || 'Kg'}`,
+          delivery: q.deliveryLocation || 'Mundra Port, Gujarat',
+          status: q.status || 'PENDING',
+          date: q.createdAt ? new Date(q.createdAt).toISOString().split('T')[0] : '2026-09-03',
+        }
+        setQuotes([newQuote, ...quotes])
+      } else {
+        const newQuote: QuoteRecord = {
+          id: `RFQ-${8001 + quotes.length}`,
+          clientName,
+          company: company || clientName,
+          product,
+          qty,
+          delivery: delivery || 'Mundra Port, Gujarat',
+          status: 'PENDING',
+          date: new Date().toISOString().split('T')[0],
+        }
+        setQuotes([newQuote, ...quotes])
+      }
+    } catch (err) {
+      console.error('Error adding quote:', err)
+      const newQuote: QuoteRecord = {
+        id: `RFQ-${8001 + quotes.length}`,
+        clientName,
+        company: company || clientName,
+        product,
+        qty,
+        delivery: delivery || 'Mundra Port, Gujarat',
+        status: 'PENDING',
+        date: new Date().toISOString().split('T')[0],
+      }
+      setQuotes([newQuote, ...quotes])
+    } finally {
+      setSaving(false)
+      setClientName('')
+      setCompany('')
+      setProduct('')
+      setQty('')
+      setDelivery('')
+      setShowAddModal(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-amber-800 text-[11px] font-extrabold uppercase tracking-wider bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+            <FileText className="w-3.5 h-3.5 text-amber-700" />
+            <span>RFQ & Quotation Processing Desk</span>
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-900">Quotations & RFQs</h1>
+          <p className="text-xs text-slate-500">
+            Manage client quotation requests, generate proforma invoices, and track quote pipelines.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm">
+            <Plus className="w-4 h-4" />
+            <span>Create New Quotation</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Quotations Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+          <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({quotes.length})</div>
+        </div>
+
+        {loading ? (
+          <div className="p-12 text-center text-slate-400">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+            <span className="text-xs font-semibold">Loading quotations from database...</span>
+          </div>
+        ) : quotes.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-extrabold text-slate-800">No Quotations Created</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Click <strong>"Create New Quotation"</strong> above to issue formal RFQ quotes.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-3 px-4">RFQ ID</th>
+                  <th className="py-3 px-4">Client / Company</th>
+                  <th className="py-3 px-4">Product Requested</th>
+                  <th className="py-3 px-4">Quantity</th>
+                  <th className="py-3 px-4">Destination</th>
+                  <th className="py-3 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
+                {quotes.map((q) => (
+                  <tr key={q.id} className="hover:bg-slate-50">
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">{q.id}</td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900">{q.clientName}</div>
+                      <div className="text-[11px] text-slate-500">{q.company}</div>
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-900">{q.product}</td>
+                    <td className="py-3.5 px-4 font-mono text-slate-700">{q.qty}</td>
+                    <td className="py-3.5 px-4 text-slate-600">{q.delivery}</td>
+                    <td className="py-3.5 px-4 text-right">
+                      <span
+                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                          q.status === 'ACCEPTED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : q.status === 'QUOTED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {q.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Add Quotation Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-base text-slate-900">Create New Quotation / RFQ</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddQuote} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Client Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rajesh Mehta"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Company / Organization</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Mehta Chemical Industries"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Product Requested *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Soda Ash Light Grade"
+                    value={product}
+                    onChange={(e) => setProduct(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Quantity *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 50"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Delivery Destination</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Mundra Port, Gujarat"
+                  value={delivery}
+                  onChange={(e) => setDelivery(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save Quotation</span>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

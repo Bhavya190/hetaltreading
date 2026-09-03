@@ -1,0 +1,211 @@
+// Prisma Schema for Hetal Trading Company
+// Supports Supabase PostgreSQL with pooled DATABASE_URL and DIRECT_URL for migrations
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum InquiryStatus {
+  PENDING
+  REVIEWED
+  CONTACTED
+  COMPLETED
+}
+
+enum QuoteStatus {
+  PENDING
+  QUOTED
+  ACCEPTED
+  REJECTED
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  icon        String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id             String    @id @default(cuid())
+  serialNumber   String?   @unique
+  name           String
+  slug           String    @unique
+  description    String    @default("")
+  category       Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  purchasePrice  Float     @default(0)
+  unit           String    @default("Kg")
+  inventoryStock Int       @default(0)
+  sellingPrice   Float     @default(0)
+  gstRate        Float     @default(18)
+  price          Float?
+  minOrderQty    Int       @default(100)
+  inStock        Boolean   @default(true)
+  featured       Boolean   @default(false)
+  specs          Json?
+  imageUrl       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Inquiry {
+  id          String        @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  company     String?
+  subject     String
+  message     String
+  status      InquiryStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model QuoteRequest {
+  id               String      @id @default(cuid())
+  clientName       String
+  email            String
+  phone            String
+  companyName      String?
+  productName      String
+  quantity         Int
+  unit             String      @default("Kg")
+  targetPrice      Float?
+  deliveryLocation String?
+  notes            String?
+  status           QuoteStatus @default(PENDING)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Customer {
+  id              String         @id @default(cuid())
+  name            String
+  mobileNumber    String
+  billingAddress  String
+  creditLimitDays Int            @default(30)
+  status          CustomerStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model DeptAccount {
+  id              String            @id @default(cuid())
+  customerName    String
+  mobileNumber    String
+  billingAddress  String
+  creditLimitDays Int               @default(30)
+  totalDebtAmount Float             @default(0)
+  totalPaidAmount Float             @default(0)
+  balanceDue      Float             @default(0)
+  status          CustomerStatus    @default(ACTIVE)
+  transactions    DebtTransaction[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model DebtTransaction {
+  id            String      @id @default(cuid())
+  deptAccountId String
+  deptAccount   DeptAccount @relation(fields: [deptAccountId], references: [id], onDelete: Cascade)
+  billNumber    String
+  date          DateTime    @default(now())
+  itemsSummary  String
+  billAmount    Float
+  paidAmount    Float       @default(0)
+  balanceAmount Float
+  paymentStatus String      @default("PENDING")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model DailySale {
+  id           String          @id @default(cuid())
+  billNumber   String          @unique
+  date         DateTime        @default(now())
+  customerName String
+  subtotal     Float           @default(0)
+  extraCharges Float           @default(0)
+  grandTotal   Float           @default(0)
+  status       String          @default("COMPLETED")
+  items        DailySaleItem[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model DailySaleItem {
+  id           String    @id @default(cuid())
+  dailySaleId  String
+  dailySale    DailySale @relation(fields: [dailySaleId], references: [id], onDelete: Cascade)
+  productId    String?
+  productName  String
+  serialNumber String?
+  gstRate      String    @default("18")
+  unit         String    @default("Kg")
+  quantity     Float     @default(1)
+  unitPrice    Float     @default(0)
+  amount       Float     @default(0)
+  discount     Float     @default(0)
+  netTotal     Float     @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Vendor {
+  id            String   @id @default(cuid())
+  vendorCode    String   @unique
+  name          String
+  category      String   @default("Industrial Chemicals & Minerals")
+  contactPerson String
+  phone         String
+  city          String   @default("")
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique
+  date        DateTime @default(now())
+  vendor      String
+  item        String
+  quantity    Int      @default(1)
+  totalAmount Float    @default(0)
+  status      String   @default("DELIVERED")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Bill {
+  id            String   @id @default(cuid())
+  billNumber    String   @unique
+  date          DateTime @default(now())
+  customer      String
+  amount        Float    @default(0)
+  paidAmount    Float    @default(0)
+  balanceAmount Float    @default(0)
+  status        String   @default("PAID")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+
+
+
