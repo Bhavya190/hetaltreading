@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronDown,
   Package,
+  Pencil,
   User,
   Hash,
 } from 'lucide-react'
@@ -81,7 +82,7 @@ const DEFAULT_DEBT_CUSTOMERS: DebtCustomerOption[] = [
 export default function DailySalePage() {
   const [sales, setSales] = useState<DailySaleRecord[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
-  const [debtCustomers, setDebtCustomers] = useState<DebtCustomerOption[]>(DEFAULT_DEBT_CUSTOMERS)
+  const [debtCustomers, setDebtCustomers] = useState<DebtCustomerOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -90,6 +91,25 @@ export default function DailySalePage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [selectedSaleDetail, setSelectedSaleDetail] = useState<DailySaleRecord | null>(null)
+  const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null)
+
+  const handleDeleteDailySale = async (id: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/daily-sales/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        setSales(sales.filter((s) => s.id !== id))
+      } else {
+        fetchData()
+      }
+    } catch (err) {
+      console.error('Error deleting daily sale entry:', err)
+    } finally {
+      setSaving(false)
+      setDeletingSaleId(null)
+    }
+  }
 
   // Header Fields State
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0])
@@ -202,7 +222,7 @@ export default function DailySalePage() {
       // Fetch Debt Customers
       const resCust = await fetch('/api/dept-accounts')
       const dataCust = await resCust.json()
-      if (dataCust.success && Array.isArray(dataCust.data) && dataCust.data.length > 0) {
+      if (dataCust.success && Array.isArray(dataCust.data)) {
         setDebtCustomers(
           dataCust.data.map((c: any) => ({
             id: c.id,
@@ -211,20 +231,20 @@ export default function DailySalePage() {
           }))
         )
       } else {
-        setDebtCustomers(DEFAULT_DEBT_CUSTOMERS)
+        setDebtCustomers([])
       }
 
       // Fetch Daily Sales
       const resSales = await fetch('/api/daily-sales')
       const dataSales = await resSales.json()
-      if (dataSales.success && Array.isArray(dataSales.data) && dataSales.data.length > 0) {
+      if (dataSales.success && Array.isArray(dataSales.data)) {
         setSales(dataSales.data)
       } else {
-        setSales(SAMPLE_SALES)
+        setSales([])
       }
     } catch (err) {
       console.error('Failed to load daily sales data:', err)
-      setSales(SAMPLE_SALES)
+      setSales([])
     } finally {
       setLoading(false)
     }
@@ -600,7 +620,7 @@ export default function DailySalePage() {
                     <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700 text-sm">
                       ₹ {sale.grandTotal ? sale.grandTotal.toLocaleString() : 0}
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right space-x-1">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -610,6 +630,16 @@ export default function DailySalePage() {
                       >
                         <Receipt className="w-3.5 h-3.5" />
                         <span>View Details</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeletingSaleId(sale.id)
+                        }}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors inline-block"
+                        title="Delete Sale Record"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -976,6 +1006,37 @@ export default function DailySalePage() {
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl"
               >
                 Close Bill Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Daily Sale Confirmation Dialog */}
+      {deletingSaleId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">Delete Sales Record?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to delete this daily sale bill and all line items?
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeletingSaleId(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteDailySale(deletingSaleId)}
+                disabled={saving}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Delete</span>}
               </button>
             </div>
           </div>

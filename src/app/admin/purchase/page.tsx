@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ShoppingBag, Plus, Truck, Calendar, PackageCheck, AlertCircle, CheckCircle2, X, Loader2 } from 'lucide-react'
+import { ShoppingBag, Plus, Truck, Calendar, PackageCheck, AlertCircle, CheckCircle2, X, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 export interface PurchaseRecord {
   id: string
@@ -18,7 +18,11 @@ export default function PurchasePage() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingPurchase, setEditingPurchase] = useState<PurchaseRecord | null>(null)
+  const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
 
   // Form State
   const [vendor, setVendor] = useState('')
@@ -55,7 +59,7 @@ export default function PurchasePage() {
       setLoading(true)
       const res = await fetch('/api/purchase')
       const data = await res.json()
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data.success && Array.isArray(data.data)) {
         setPurchases(
           data.data.map((p: any) => ({
             id: p.id,
@@ -69,11 +73,11 @@ export default function PurchasePage() {
           }))
         )
       } else {
-        setPurchases(SAMPLE_PURCHASES)
+        setPurchases([])
       }
     } catch (err) {
       console.error('Error fetching purchases:', err)
-      setPurchases(SAMPLE_PURCHASES)
+      setPurchases([])
     } finally {
       setLoading(false)
     }
@@ -82,6 +86,14 @@ export default function PurchasePage() {
   useEffect(() => {
     fetchPurchases()
   }, [])
+
+  const resetForm = () => {
+    setVendor('')
+    setItem('')
+    setQuantity('1')
+    setTotalAmount('')
+    setStatus('DELIVERED')
+  }
 
   const handleAddPurchase = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,53 +113,76 @@ export default function PurchasePage() {
         }),
       })
       const data = await res.json()
-
       if (data.success && data.data) {
-        const p = data.data
-        const newPO: PurchaseRecord = {
-          id: p.id,
-          orderNumber: p.orderNumber || p.id,
-          vendor: p.vendor,
-          item: p.item,
-          quantity: p.quantity || 1,
-          totalAmount: p.totalAmount || 0,
-          date: p.date ? new Date(p.date).toISOString().split('T')[0] : '2026-09-03',
-          status: p.status || 'DELIVERED',
-        }
-        setPurchases([newPO, ...purchases])
+        fetchPurchases()
       } else {
-        const newPO: PurchaseRecord = {
-          id: `PO-${Date.now().toString().slice(-4)}`,
-          orderNumber: `PO-${Date.now().toString().slice(-4)}`,
+        fetchPurchases()
+      }
+    } catch (err) {
+      console.error('Error creating purchase:', err)
+    } finally {
+      setSaving(false)
+      setShowAddModal(false)
+      resetForm()
+    }
+  }
+
+  const openEditModal = (p: PurchaseRecord) => {
+    setEditingPurchase(p)
+    setVendor(p.vendor || '')
+    setItem(p.item || '')
+    setQuantity(p.quantity ? String(p.quantity) : '1')
+    setTotalAmount(p.totalAmount ? String(p.totalAmount) : '')
+    setStatus(p.status || 'DELIVERED')
+  }
+
+  const handleUpdatePurchase = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingPurchase) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/purchase/${editingPurchase.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           vendor,
           item,
           quantity: parseInt(quantity, 10) || 1,
           totalAmount: parseFloat(totalAmount) || 0,
-          date: new Date().toISOString().split('T')[0],
           status,
-        }
-        setPurchases([newPO, ...purchases])
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.data) {
+        setPurchases(purchases.map((p) => (p.id === editingPurchase.id ? data.data : p)))
+      } else {
+        fetchPurchases()
       }
     } catch (err) {
-      console.error('Error creating purchase:', err)
-      const newPO: PurchaseRecord = {
-        id: `PO-${Date.now().toString().slice(-4)}`,
-        orderNumber: `PO-${Date.now().toString().slice(-4)}`,
-        vendor,
-        item,
-        quantity: parseInt(quantity, 10) || 1,
-        totalAmount: parseFloat(totalAmount) || 0,
-        date: new Date().toISOString().split('T')[0],
-        status,
-      }
-      setPurchases([newPO, ...purchases])
+      console.error('Error updating purchase order:', err)
     } finally {
       setSaving(false)
-      setVendor('')
-      setItem('')
-      setQuantity('1')
-      setTotalAmount('')
-      setShowAddModal(false)
+      setEditingPurchase(null)
+      resetForm()
+    }
+  }
+
+  const handleDeletePurchase = async (id: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/purchase/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        setPurchases(purchases.filter((p) => p.id !== id))
+      } else {
+        fetchPurchases()
+      }
+    } catch (err) {
+      console.error('Error deleting purchase order:', err)
+    } finally {
+      setSaving(false)
+      setDeletingPurchaseId(null)
     }
   }
 
@@ -171,7 +206,7 @@ export default function PurchasePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm">
+          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2">
             <Plus className="w-4 h-4" />
             <span>Create Purchase Order</span>
           </button>
@@ -232,7 +267,8 @@ export default function PurchasePage() {
                   <th className="py-3 px-4">Item & Quantity</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Total Amount</th>
-                  <th className="py-3 px-4 text-right">Status</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
@@ -249,7 +285,7 @@ export default function PurchasePage() {
                     <td className="py-3.5 px-4 font-mono font-extrabold text-slate-900">
                       ₹ {p.totalAmount ? p.totalAmount.toLocaleString() : 0}
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4">
                       <span
                         className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
                           p.status === 'DELIVERED'
@@ -262,6 +298,22 @@ export default function PurchasePage() {
                         {p.status}
                       </span>
                     </td>
+                    <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => openEditModal(p)}
+                        className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"
+                        title="Edit Purchase Order"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingPurchaseId(p.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors"
+                        title="Delete Purchase Order"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -270,18 +322,27 @@ export default function PurchasePage() {
         )}
       </div>
 
-      {/* Add PO Modal */}
-      {showAddModal && (
+      {/* Add / Edit PO Modal */}
+      {(showAddModal || editingPurchase) && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900">Create New Purchase Order</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+              <h3 className="font-extrabold text-base text-slate-900">
+                {editingPurchase ? 'Edit Purchase Order' : 'Create New Purchase Order'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  setEditingPurchase(null)
+                  resetForm()
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddPurchase} className="space-y-3 text-xs">
+            <form onSubmit={editingPurchase ? handleUpdatePurchase : handleAddPurchase} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Vendor / Supplier Name *</label>
                 <input
@@ -349,7 +410,11 @@ export default function PurchasePage() {
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false)
+                    setEditingPurchase(null)
+                    resetForm()
+                  }}
                   className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
@@ -357,12 +422,44 @@ export default function PurchasePage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5"
+                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5 font-bold"
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save Purchase Order</span>}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{editingPurchase ? 'Update Purchase Order' : 'Save Purchase Order'}</span>}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete PO Confirmation Dialog */}
+      {deletingPurchaseId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">Delete Purchase Order?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to delete this purchase order record? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeletingPurchaseId(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeletePurchase(deletingPurchaseId)}
+                disabled={saving}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Delete</span>}
+              </button>
+            </div>
           </div>
         </div>
       )}

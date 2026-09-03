@@ -93,14 +93,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Vendors', href: '/admin/vendors', icon: Truck },
     { name: 'Debt', href: '/admin/debt', icon: BookOpen },
     { name: 'Products', href: '/admin/products', icon: Package },
+    { name: 'Customers', href: '/admin/customers', icon: Users },
     { name: 'Quotations', href: '/admin/quotations', icon: FileText },
   ]
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div className="h-screen w-screen overflow-hidden bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
       
       {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 bg-slate-900 text-white h-16 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shadow-md">
+      <header className="h-16 shrink-0 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shadow-md z-40">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -151,19 +152,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </header>
 
       {/* Main Admin Body */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         
         {/* Sidebar Navigation */}
         <aside
-          className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col justify-between shadow-xs ${
+          className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col justify-between shrink-0 h-full overflow-y-auto shadow-xs ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
           <div className="p-3 space-y-4 overflow-y-auto">
             <div className="pt-1">
-              {/* <div className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-3 px-2">
-                CRM Management Modules
-              </div> */}
               <nav className="space-y-1">
                 {crmNavItems.map((item) => {
                   const Icon = item.icon
@@ -194,7 +192,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </aside>
 
         {/* Main Content Workspace */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50 h-full">
           {children}
         </main>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Truck, Plus, Mail, Phone, MapPin, Building2, CheckCircle2, X, Loader2 } from 'lucide-react'
+import { Truck, Plus, Mail, Phone, MapPin, Building2, CheckCircle2, X, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 export interface VendorRecord {
   id: string
@@ -18,7 +18,11 @@ export default function VendorsPage() {
   const [vendors, setVendors] = useState<VendorRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingVendor, setEditingVendor] = useState<VendorRecord | null>(null)
+  const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null)
 
   // Form State
   const [name, setName] = useState('')
@@ -55,14 +59,14 @@ export default function VendorsPage() {
       setLoading(true)
       const res = await fetch('/api/vendors')
       const data = await res.json()
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data.success && Array.isArray(data.data)) {
         setVendors(data.data)
       } else {
-        setVendors(SAMPLE_VENDORS)
+        setVendors([])
       }
     } catch (err) {
       console.error('Error loading vendors:', err)
-      setVendors(SAMPLE_VENDORS)
+      setVendors([])
     } finally {
       setLoading(false)
     }
@@ -71,6 +75,14 @@ export default function VendorsPage() {
   useEffect(() => {
     fetchVendors()
   }, [])
+
+  const resetForm = () => {
+    setName('')
+    setContactPerson('')
+    setPhone('')
+    setCity('')
+    setCategory('Industrial Chemicals & Minerals')
+  }
 
   const handleAddVendor = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,48 +96,75 @@ export default function VendorsPage() {
         body: JSON.stringify({ name, category, contactPerson, phone, city }),
       })
       const data = await res.json()
-
       if (data.success && data.data) {
         setVendors([data.data, ...vendors])
       } else {
-        const newVendor: VendorRecord = {
-          id: `VEN-0${1 + vendors.length}`,
-          vendorCode: `VEN-0${1 + vendors.length}`,
-          name,
-          category,
-          contactPerson,
-          phone,
-          city,
-          status: 'ACTIVE',
-        }
-        setVendors([newVendor, ...vendors])
+        fetchVendors()
       }
     } catch (err) {
       console.error('Error adding vendor:', err)
-      const newVendor: VendorRecord = {
-        id: `VEN-0${1 + vendors.length}`,
-        vendorCode: `VEN-0${1 + vendors.length}`,
-        name,
-        category,
-        contactPerson,
-        phone,
-        city,
-        status: 'ACTIVE',
-      }
-      setVendors([newVendor, ...vendors])
     } finally {
       setSaving(false)
-      setName('')
-      setContactPerson('')
-      setPhone('')
-      setCity('')
       setShowAddModal(false)
+      resetForm()
+    }
+  }
+
+  const openEditModal = (v: VendorRecord) => {
+    setEditingVendor(v)
+    setName(v.name || '')
+    setCategory(v.category || 'Industrial Chemicals & Minerals')
+    setContactPerson(v.contactPerson || '')
+    setPhone(v.phone || '')
+    setCity(v.city || '')
+  }
+
+  const handleUpdateVendor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingVendor) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/vendors/${editingVendor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, category, contactPerson, phone, city }),
+      })
+      const data = await res.json()
+      if (data.success && data.data) {
+        setVendors(vendors.map((v) => (v.id === editingVendor.id ? data.data : v)))
+      } else {
+        fetchVendors()
+      }
+    } catch (err) {
+      console.error('Error updating vendor:', err)
+    } finally {
+      setSaving(false)
+      setEditingVendor(null)
+      resetForm()
+    }
+  }
+
+  const handleDeleteVendor = async (id: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/vendors/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        setVendors(vendors.filter((v) => v.id !== id))
+      } else {
+        fetchVendors()
+      }
+    } catch (err) {
+      console.error('Error deleting vendor:', err)
+    } finally {
+      setSaving(false)
+      setDeletingVendorId(null)
     }
   }
 
   return (
     <div className="space-y-6">
-      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div className="space-y-1">
@@ -134,11 +173,13 @@ export default function VendorsPage() {
             <span>Supplier Directory & Vendor CRM</span>
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900">Vendors & Suppliers Directory</h1>
-          <p className="text-xs text-slate-500">Manage raw material suppliers, mine operators, manufacturers, and logistics partners.</p>
+          <p className="text-xs text-slate-500">
+            Manage raw material suppliers, mine operators, manufacturers, and logistics partners.
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm">
+          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2">
             <Plus className="w-4 h-4" />
             <span>Add New Vendor</span>
           </button>
@@ -178,7 +219,7 @@ export default function VendorsPage() {
                   <th className="py-3 px-4">Supply Category</th>
                   <th className="py-3 px-4">Key Contact</th>
                   <th className="py-3 px-4">Location</th>
-                  <th className="py-3 px-4 text-right">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
@@ -198,12 +239,25 @@ export default function VendorsPage() {
                       <div className="text-[11px] text-slate-500">{v.phone}</div>
                     </td>
                     <td className="py-3.5 px-4 text-slate-600">
-                      <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /> {v.city || '-'}</div>
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-slate-400" /> {v.city || '-'}
+                      </div>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                        {v.status}
-                      </span>
+                    <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => openEditModal(v)}
+                        className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"
+                        title="Edit Vendor"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingVendorId(v.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors"
+                        title="Delete Vendor"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -213,18 +267,27 @@ export default function VendorsPage() {
         )}
       </div>
 
-      {/* Add Vendor Modal */}
-      {showAddModal && (
+      {/* Add / Edit Vendor Modal */}
+      {(showAddModal || editingVendor) && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900">Register New Supplier / Vendor</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+              <h3 className="font-extrabold text-base text-slate-900">
+                {editingVendor ? 'Edit Vendor Details' : 'Register New Supplier / Vendor'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  setEditingVendor(null)
+                  resetForm()
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddVendor} className="space-y-3 text-xs">
+            <form onSubmit={editingVendor ? handleUpdateVendor : handleAddVendor} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Company Name *</label>
                 <input
@@ -291,7 +354,11 @@ export default function VendorsPage() {
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false)
+                    setEditingVendor(null)
+                    resetForm()
+                  }}
                   className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
@@ -299,9 +366,9 @@ export default function VendorsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5"
+                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5 font-bold"
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save Vendor</span>}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{editingVendor ? 'Update Vendor' : 'Save Vendor'}</span>}
                 </button>
               </div>
             </form>
@@ -309,6 +376,37 @@ export default function VendorsPage() {
         </div>
       )}
 
+      {/* Delete Vendor Confirmation Dialog */}
+      {deletingVendorId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">Delete Vendor?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to delete this supplier record? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeletingVendorId(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteVendor(deletingVendorId)}
+                disabled={saving}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Delete</span>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

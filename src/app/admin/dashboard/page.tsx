@@ -8,7 +8,8 @@ import {
   ShoppingBag, 
   Receipt, 
   Truck, 
-  Building2, 
+  Building2,
+  BookOpen, 
   Package, 
   Users, 
   FileText, 
@@ -168,9 +169,9 @@ export default function DashboardPage() {
                 <span>Vendors</span>
               </Link>
 
-              <Link href="/admin/departments" className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-800 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-purple-600 shrink-0" />
-                <span>Dept.</span>
+              <Link href="/admin/debt" className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-800 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-purple-600 shrink-0" />
+                <span>Debt</span>
               </Link>
 
               <Link href="/admin/products" className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-800 flex items-center gap-2">
@@ -180,7 +181,7 @@ export default function DashboardPage() {
 
               <Link href="/admin/customers" className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-800 flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Dept. Customer</span>
+                <span>Customers</span>
               </Link>
 
               <Link href="/admin/quotations" className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-slate-800 flex items-center gap-2">

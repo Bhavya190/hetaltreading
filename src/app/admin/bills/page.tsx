@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Receipt, Plus, Eye, Printer, Download, CheckCircle2, Clock, AlertCircle, X, Loader2 } from 'lucide-react'
+import { Receipt, Plus, Eye, Printer, Download, CheckCircle2, Clock, AlertCircle, X, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 export interface BillRecord {
   id: string
@@ -19,8 +19,11 @@ export default function BillsPage() {
   const [bills, setBills] = useState<BillRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [activeInvoice, setActiveInvoice] = useState<BillRecord | null>(null)
+
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingBill, setEditingBill] = useState<BillRecord | null>(null)
+  const [deletingBillId, setDeletingBillId] = useState<string | null>(null)
 
   // Form State
   const [customer, setCustomer] = useState('')
@@ -55,7 +58,7 @@ export default function BillsPage() {
       setLoading(true)
       const res = await fetch('/api/bills')
       const data = await res.json()
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data.success && Array.isArray(data.data)) {
         setBills(
           data.data.map((b: any) => ({
             id: b.id,
@@ -69,11 +72,11 @@ export default function BillsPage() {
           }))
         )
       } else {
-        setBills(SAMPLE_BILLS)
+        setBills([])
       }
     } catch (err) {
       console.error('Error loading bills:', err)
-      setBills(SAMPLE_BILLS)
+      setBills([])
     } finally {
       setLoading(false)
     }
@@ -82,6 +85,12 @@ export default function BillsPage() {
   useEffect(() => {
     fetchBills()
   }, [])
+
+  const resetForm = () => {
+    setCustomer('')
+    setAmount('')
+    setPaidAmount('')
+  }
 
   const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,56 +108,72 @@ export default function BillsPage() {
         }),
       })
       const data = await res.json()
-
       if (data.success && data.data) {
-        const b = data.data
-        const newBill: BillRecord = {
-          id: b.id,
-          billNumber: b.billNumber || b.id,
-          customer: b.customer,
-          date: b.date ? new Date(b.date).toISOString().split('T')[0] : '2026-09-03',
-          amount: b.amount || 0,
-          paidAmount: b.paidAmount || 0,
-          balanceAmount: b.balanceAmount || 0,
-          status: b.status || 'PAID',
-        }
-        setBills([newBill, ...bills])
+        fetchBills()
       } else {
-        const totalAmt = parseFloat(amount) || 0
-        const paid = parseFloat(paidAmount) || 0
-        const newBill: BillRecord = {
-          id: `INV-2026-${Date.now().toString().slice(-3)}`,
-          billNumber: `INV-2026-${Date.now().toString().slice(-3)}`,
-          customer,
-          date: new Date().toISOString().split('T')[0],
-          amount: totalAmt,
-          paidAmount: paid,
-          balanceAmount: Math.max(0, totalAmt - paid),
-          status: paid >= totalAmt ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
-        }
-        setBills([newBill, ...bills])
+        fetchBills()
       }
     } catch (err) {
       console.error('Error adding bill:', err)
-      const totalAmt = parseFloat(amount) || 0
-      const paid = parseFloat(paidAmount) || 0
-      const newBill: BillRecord = {
-        id: `INV-2026-${Date.now().toString().slice(-3)}`,
-        billNumber: `INV-2026-${Date.now().toString().slice(-3)}`,
-        customer,
-        date: new Date().toISOString().split('T')[0],
-        amount: totalAmt,
-        paidAmount: paid,
-        balanceAmount: Math.max(0, totalAmt - paid),
-        status: paid >= totalAmt ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
-      }
-      setBills([newBill, ...bills])
     } finally {
       setSaving(false)
-      setCustomer('')
-      setAmount('')
-      setPaidAmount('')
       setShowAddModal(false)
+      resetForm()
+    }
+  }
+
+  const openEditModal = (b: BillRecord) => {
+    setEditingBill(b)
+    setCustomer(b.customer || '')
+    setAmount(b.amount ? String(b.amount) : '')
+    setPaidAmount(b.paidAmount ? String(b.paidAmount) : '')
+  }
+
+  const handleUpdateBill = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingBill) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/bills/${editingBill.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer,
+          amount: parseFloat(amount) || 0,
+          paidAmount: parseFloat(paidAmount) || 0,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.data) {
+        setBills(bills.map((b) => (b.id === editingBill.id ? data.data : b)))
+      } else {
+        fetchBills()
+      }
+    } catch (err) {
+      console.error('Error updating bill:', err)
+    } finally {
+      setSaving(false)
+      setEditingBill(null)
+      resetForm()
+    }
+  }
+
+  const handleDeleteBill = async (id: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/bills/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        setBills(bills.filter((b) => b.id !== id))
+      } else {
+        fetchBills()
+      }
+    } catch (err) {
+      console.error('Error deleting bill:', err)
+    } finally {
+      setSaving(false)
+      setDeletingBillId(null)
     }
   }
 
@@ -172,7 +197,7 @@ export default function BillsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddModal(true)} className="btn-navy text-xs py-2.5 px-4 shadow-sm">
+          <button onClick={() => setShowAddModal(true)} className="btn-navy text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2">
             <Plus className="w-4 h-4 text-amber-400" />
             <span>Generate New Bill</span>
           </button>
@@ -235,7 +260,8 @@ export default function BillsPage() {
                   <th className="py-3 px-4">Invoice Date</th>
                   <th className="py-3 px-4">Invoice Amount</th>
                   <th className="py-3 px-4">Paid Amount</th>
-                  <th className="py-3 px-4 text-right">Payment Status</th>
+                  <th className="py-3 px-4">Payment Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
@@ -246,7 +272,7 @@ export default function BillsPage() {
                     <td className="py-3.5 px-4 font-mono text-slate-600">{b.date}</td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900">₹ {b.amount.toLocaleString()}</td>
                     <td className="py-3.5 px-4 font-mono text-emerald-700 font-bold">₹ {b.paidAmount.toLocaleString()}</td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4">
                       <span
                         className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
                           b.status === 'PAID'
@@ -259,6 +285,22 @@ export default function BillsPage() {
                         {b.status}
                       </span>
                     </td>
+                    <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => openEditModal(b)}
+                        className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"
+                        title="Edit Bill"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingBillId(b.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors"
+                        title="Delete Bill"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -267,18 +309,27 @@ export default function BillsPage() {
         )}
       </div>
 
-      {/* Add Bill Modal */}
-      {showAddModal && (
+      {/* Add / Edit Bill Modal */}
+      {(showAddModal || editingBill) && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900">Generate Commercial Bill / Invoice</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+              <h3 className="font-extrabold text-base text-slate-900">
+                {editingBill ? 'Edit Commercial Invoice' : 'Generate Commercial Bill / Invoice'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  setEditingBill(null)
+                  resetForm()
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddBill} className="space-y-3 text-xs">
+            <form onSubmit={editingBill ? handleUpdateBill : handleAddBill} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Customer / Client Name *</label>
                 <input
@@ -319,7 +370,11 @@ export default function BillsPage() {
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false)
+                    setEditingBill(null)
+                    resetForm()
+                  }}
                   className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
@@ -327,12 +382,44 @@ export default function BillsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn-navy px-4 py-2 shadow-sm flex items-center gap-1.5"
+                  className="btn-navy px-4 py-2 shadow-sm flex items-center gap-1.5 font-bold"
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <span className="text-white">Save Bill</span>}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <span className="text-white">{editingBill ? 'Update Bill' : 'Save Bill'}</span>}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Bill Confirmation Dialog */}
+      {deletingBillId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">Delete Bill / Invoice?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to delete this invoice record? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeletingBillId(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteBill(deletingBillId)}
+                disabled={saving}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Delete</span>}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -33,12 +33,16 @@ export async function POST(request: Request) {
       )
     }
 
+    const parsedDays = (creditLimitDays !== undefined && creditLimitDays !== null && creditLimitDays !== '')
+      ? parseInt(String(creditLimitDays), 10)
+      : 30
+
     const deptAccount = await (prisma as any).deptAccount.create({
       data: {
         customerName,
         mobileNumber,
         billingAddress,
-        creditLimitDays: parseInt(creditLimitDays, 10) || 30,
+        creditLimitDays: isNaN(parsedDays) ? 30 : parsedDays,
         totalDebtAmount: 0,
         totalPaidAmount: 0,
         balanceDue: 0,

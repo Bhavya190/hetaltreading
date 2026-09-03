@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const customers = await prisma.customer.findMany({
+    const customers = await (prisma as any).customer.findMany({
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ success: true, source: 'database', data: customers })
@@ -28,12 +28,16 @@ export async function POST(request: Request) {
       )
     }
 
-    const customer = await prisma.customer.create({
+    const parsedDays = (creditLimitDays !== undefined && creditLimitDays !== null && creditLimitDays !== '')
+      ? parseInt(String(creditLimitDays), 10)
+      : 30
+
+    const customer = await (prisma as any).customer.create({
       data: {
         name,
         mobileNumber,
         billingAddress,
-        creditLimitDays: parseInt(creditLimitDays, 10) || 30,
+        creditLimitDays: isNaN(parsedDays) ? 30 : parsedDays,
         status: 'ACTIVE',
       },
     })

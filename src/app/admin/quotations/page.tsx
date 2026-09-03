@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, Search, Eye, Mail, Building2, CheckCircle2, Clock, X, Loader2 } from 'lucide-react'
+import { FileText, Plus, Search, Eye, Mail, Building2, CheckCircle2, Clock, X, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 export interface QuoteRecord {
   id: string
@@ -18,8 +18,11 @@ export default function QuotationsPage() {
   const [quotes, setQuotes] = useState<QuoteRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [selectedQuote, setSelectedQuote] = useState<QuoteRecord | null>(null)
+
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingQuote, setEditingQuote] = useState<QuoteRecord | null>(null)
+  const [deletingQuoteId, setDeletingQuoteId] = useState<string | null>(null)
 
   // Form State
   const [clientName, setClientName] = useState('')
@@ -27,6 +30,7 @@ export default function QuotationsPage() {
   const [product, setProduct] = useState('')
   const [qty, setQty] = useState('')
   const [delivery, setDelivery] = useState('')
+  const [status, setStatus] = useState<'PENDING' | 'QUOTED' | 'ACCEPTED'>('PENDING')
 
   const SAMPLE_QUOTES: QuoteRecord[] = [
     {
@@ -56,7 +60,7 @@ export default function QuotationsPage() {
       setLoading(true)
       const res = await fetch('/api/quotes')
       const data = await res.json()
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data.success && Array.isArray(data.data)) {
         setQuotes(
           data.data.map((q: any) => ({
             id: q.id,
@@ -70,11 +74,11 @@ export default function QuotationsPage() {
           }))
         )
       } else {
-        setQuotes(SAMPLE_QUOTES)
+        setQuotes([])
       }
     } catch (err) {
       console.error('Error fetching quotes:', err)
-      setQuotes(SAMPLE_QUOTES)
+      setQuotes([])
     } finally {
       setLoading(false)
     }
@@ -83,6 +87,15 @@ export default function QuotationsPage() {
   useEffect(() => {
     fetchQuotes()
   }, [])
+
+  const resetForm = () => {
+    setClientName('')
+    setCompany('')
+    setProduct('')
+    setQty('')
+    setDelivery('')
+    setStatus('PENDING')
+  }
 
   const handleAddQuote = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -100,57 +113,82 @@ export default function QuotationsPage() {
           quantity: parseInt(qty, 10) || 1,
           unit: 'Kg',
           deliveryLocation: delivery,
+          status,
         }),
       })
       const data = await res.json()
-
       if (data.success && data.data) {
-        const q = data.data
-        const newQuote: QuoteRecord = {
-          id: q.id,
-          clientName: q.clientName,
-          company: q.companyName || q.clientName,
-          product: q.productName,
-          qty: `${q.quantity} ${q.unit || 'Kg'}`,
-          delivery: q.deliveryLocation || 'Mundra Port, Gujarat',
-          status: q.status || 'PENDING',
-          date: q.createdAt ? new Date(q.createdAt).toISOString().split('T')[0] : '2026-09-03',
-        }
-        setQuotes([newQuote, ...quotes])
+        fetchQuotes()
       } else {
-        const newQuote: QuoteRecord = {
-          id: `RFQ-${8001 + quotes.length}`,
-          clientName,
-          company: company || clientName,
-          product,
-          qty,
-          delivery: delivery || 'Mundra Port, Gujarat',
-          status: 'PENDING',
-          date: new Date().toISOString().split('T')[0],
-        }
-        setQuotes([newQuote, ...quotes])
+        fetchQuotes()
       }
     } catch (err) {
       console.error('Error adding quote:', err)
-      const newQuote: QuoteRecord = {
-        id: `RFQ-${8001 + quotes.length}`,
-        clientName,
-        company: company || clientName,
-        product,
-        qty,
-        delivery: delivery || 'Mundra Port, Gujarat',
-        status: 'PENDING',
-        date: new Date().toISOString().split('T')[0],
-      }
-      setQuotes([newQuote, ...quotes])
     } finally {
       setSaving(false)
-      setClientName('')
-      setCompany('')
-      setProduct('')
-      setQty('')
-      setDelivery('')
       setShowAddModal(false)
+      resetForm()
+    }
+  }
+
+  const openEditModal = (q: QuoteRecord) => {
+    setEditingQuote(q)
+    setClientName(q.clientName || '')
+    setCompany(q.company || '')
+    setProduct(q.product || '')
+    setQty(q.qty ? q.qty.replace(/[^0-9]/g, '') : '')
+    setDelivery(q.delivery || '')
+    setStatus(q.status || 'PENDING')
+  }
+
+  const handleUpdateQuote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingQuote) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/quotes/${editingQuote.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName,
+          companyName: company,
+          productName: product,
+          quantity: parseInt(qty, 10) || 1,
+          deliveryLocation: delivery,
+          status,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.data) {
+        setQuotes(quotes.map((q) => (q.id === editingQuote.id ? data.data : q)))
+      } else {
+        fetchQuotes()
+      }
+    } catch (err) {
+      console.error('Error updating quotation:', err)
+    } finally {
+      setSaving(false)
+      setEditingQuote(null)
+      resetForm()
+    }
+  }
+
+  const handleDeleteQuote = async (id: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        setQuotes(quotes.filter((q) => q.id !== id))
+      } else {
+        fetchQuotes()
+      }
+    } catch (err) {
+      console.error('Error deleting quotation:', err)
+    } finally {
+      setSaving(false)
+      setDeletingQuoteId(null)
     }
   }
 
@@ -170,7 +208,7 @@ export default function QuotationsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm">
+          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2">
             <Plus className="w-4 h-4" />
             <span>Create New Quotation</span>
           </button>
@@ -210,7 +248,8 @@ export default function QuotationsPage() {
                   <th className="py-3 px-4">Product Requested</th>
                   <th className="py-3 px-4">Quantity</th>
                   <th className="py-3 px-4">Destination</th>
-                  <th className="py-3 px-4 text-right">Status</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
@@ -224,7 +263,7 @@ export default function QuotationsPage() {
                     <td className="py-3.5 px-4 font-semibold text-slate-900">{q.product}</td>
                     <td className="py-3.5 px-4 font-mono text-slate-700">{q.qty}</td>
                     <td className="py-3.5 px-4 text-slate-600">{q.delivery}</td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4">
                       <span
                         className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
                           q.status === 'ACCEPTED'
@@ -237,6 +276,22 @@ export default function QuotationsPage() {
                         {q.status}
                       </span>
                     </td>
+                    <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => openEditModal(q)}
+                        className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"
+                        title="Edit Quotation"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingQuoteId(q.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors"
+                        title="Delete Quotation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -245,18 +300,27 @@ export default function QuotationsPage() {
         )}
       </div>
 
-      {/* Add Quotation Modal */}
-      {showAddModal && (
+      {/* Add / Edit Quotation Modal */}
+      {(showAddModal || editingQuote) && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900">Create New Quotation / RFQ</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+              <h3 className="font-extrabold text-base text-slate-900">
+                {editingQuote ? 'Edit Quotation Details' : 'Create New Quotation / RFQ'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  setEditingQuote(null)
+                  resetForm()
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddQuote} className="space-y-3 text-xs">
+            <form onSubmit={editingQuote ? handleUpdateQuote : handleAddQuote} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Client Name *</label>
                 <input
@@ -317,10 +381,27 @@ export default function QuotationsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Quote Status *</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 bg-white font-semibold"
+                >
+                  <option value="PENDING">PENDING</option>
+                  <option value="QUOTED">QUOTED</option>
+                  <option value="ACCEPTED">ACCEPTED</option>
+                </select>
+              </div>
+
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false)
+                    setEditingQuote(null)
+                    resetForm()
+                  }}
                   className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
@@ -328,12 +409,44 @@ export default function QuotationsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5"
+                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5 font-bold"
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save Quotation</span>}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{editingQuote ? 'Update Quotation' : 'Save Quotation'}</span>}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Quotation Confirmation Dialog */}
+      {deletingQuoteId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">Delete Quotation?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to delete this quotation request? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeletingQuoteId(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteQuote(deletingQuoteId)}
+                disabled={saving}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Delete</span>}
+              </button>
+            </div>
           </div>
         </div>
       )}
