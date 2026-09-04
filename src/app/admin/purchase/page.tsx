@@ -15,6 +15,8 @@ import {
   Trash2,
   Search,
   ChevronDown,
+  ChevronRight,
+  ArrowLeft,
   Layers,
   Share2,
 } from 'lucide-react'
@@ -78,6 +80,15 @@ const createEmptyItemLine = (): PurchaseItemLine => ({
   totalAmount: '',
 })
 
+export interface VendorSummaryItem {
+  vendorId: string
+  vendorCode: string
+  vendorName: string
+  totalOrders: number
+  totalPurchaseAmount: number
+  lastPurchaseDate: string
+}
+
 export default function PurchasePage() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
@@ -85,6 +96,12 @@ export default function PurchasePage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Vendor View & Search States
+  const [selectedVendorNameView, setSelectedVendorNameView] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedVendorSummaryCodes, setSelectedVendorSummaryCodes] = useState<string[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false)
@@ -256,9 +273,9 @@ export default function PurchasePage() {
 
   const resetForm = () => {
     setDate(new Date().toISOString().split('T')[0])
-    setVendorSearch('')
+    setVendorSearch(selectedVendorNameView || '')
     setSelectedVendorId('')
-    setSelectedVendorName('')
+    setSelectedVendorName(selectedVendorNameView || '')
     setShowVendorDropdown(false)
 
     setItemLines([createEmptyItemLine()])
@@ -281,7 +298,6 @@ export default function PurchasePage() {
       return
     }
 
-    // Build consolidated summary string e.g. "Soda Ash (x50), Refined Lime (x100)"
     const consolidatedItemName = validLines
       .map((l) => `${l.productName || l.productSearch} (x${l.q || 1})`)
       .join(', ')
@@ -335,11 +351,9 @@ export default function PurchasePage() {
     setSelectedVendorName(p.vendor || '')
     setVendorSearch(p.vendor || '')
 
-    // Parse items if comma separated or single item
     if (p.item) {
       const rawParts = p.item.split(',').map((s) => s.trim())
       const loadedLines: PurchaseItemLine[] = rawParts.map((part) => {
-        // extract name and qty e.g. "Product (x50)"
         const match = part.match(/^(.*?)(?:\s*\(x(\d+)\))?$/)
         const pName = match ? match[1].trim() : part
         const pQty = match && match[2] ? match[2] : String(p.quantity || 1)
@@ -439,35 +453,109 @@ export default function PurchasePage() {
 
   const totalPurchasesSum = purchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0)
 
-  // Filtered Vendors for Search Dropdown
+  // Filtered Vendors for Search Dropdown in Modal
   const filteredVendors = vendors.filter((v) =>
     v.name.toLowerCase().includes(vendorSearch.toLowerCase())
   )
 
-  // Determine if Summary Box should display
   const hasSelectedProducts = calculatedLines.some(
     (l) => l.productName || l.productSearch || l.q > 0
   )
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // Vendor Summary Aggregator
+  const getVendorSummaries = (): VendorSummaryItem[] => {
+    const summaryMap: { [key: string]: VendorSummaryItem } = {}
 
-  const handleSelectAll = (checked: boolean) => {
+    purchases.forEach((p, idx) => {
+      const vName = p.vendor || 'Unknown Vendor'
+      const matchedVendor = vendors.find(
+        (v) => v.id === p.vendorId || v.name.toLowerCase() === vName.toLowerCase()
+      )
+
+      const code =
+        matchedVendor?.vendorCode ||
+        (p.vendorId ? `VEND-${p.vendorId.slice(0, 4)}` : `VEND-${101 + idx}`)
+
+      const key = vName.toLowerCase()
+
+      if (!summaryMap[key]) {
+        summaryMap[key] = {
+          vendorId: matchedVendor?.id || p.vendorId || vName,
+          vendorCode: code,
+          vendorName: vName,
+          totalOrders: 0,
+          totalPurchaseAmount: 0,
+          lastPurchaseDate: p.date,
+        }
+      }
+
+      summaryMap[key].totalOrders += 1
+      summaryMap[key].totalPurchaseAmount += p.totalAmount || 0
+      if (p.date > summaryMap[key].lastPurchaseDate) {
+        summaryMap[key].lastPurchaseDate = p.date
+      }
+    })
+
+    return Object.values(summaryMap)
+  }
+
+  const vendorSummaries = getVendorSummaries()
+
+  // Filtering for Vendor Summary Table
+  const filteredVendorSummaries = vendorSummaries.filter((v) =>
+    v.vendorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.vendorCode.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Selected Vendor Purchases
+  const selectedVendorPurchases = selectedVendorNameView
+    ? purchases.filter((p) => p.vendor.toLowerCase() === selectedVendorNameView.toLowerCase())
+    : purchases
+
+  // Filtering for Selected Vendor Purchases Table
+  const filteredSelectedVendorPurchases = selectedVendorPurchases.filter((p) =>
+    (p.orderNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.item.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.date.includes(searchQuery)
+  )
+
+  // Selection Checkbox Handlers for Vendor Summaries
+  const handleSelectAllVendorSummaries = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(purchases.map((p) => p.id))
+      setSelectedVendorSummaryCodes(filteredVendorSummaries.map((v) => v.vendorCode))
+    } else {
+      setSelectedVendorSummaryCodes([])
+    }
+  }
+
+  const handleToggleSelectVendorSummary = (code: string) => {
+    setSelectedVendorSummaryCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    )
+  }
+
+  const exportVendorSummaries = selectedVendorSummaryCodes.length > 0
+    ? filteredVendorSummaries.filter((v) => selectedVendorSummaryCodes.includes(v.vendorCode))
+    : filteredVendorSummaries
+
+  // Selection Checkbox Handlers for Individual Purchases
+  const handleSelectAllPurchases = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredSelectedVendorPurchases.map((p) => p.id))
     } else {
       setSelectedIds([])
     }
   }
 
-  const handleToggleSelect = (id: string) => {
+  const handleToggleSelectPurchase = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     )
   }
 
   const exportPurchases = selectedIds.length > 0
-    ? purchases.filter((p) => selectedIds.includes(p.id))
-    : purchases
+    ? filteredSelectedVendorPurchases.filter((p) => selectedIds.includes(p.id))
+    : filteredSelectedVendorPurchases
 
   return (
     <div className="space-y-6">
@@ -480,7 +568,7 @@ export default function PurchasePage() {
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900">Purchase Orders & Procurement</h1>
           <p className="text-xs text-slate-500">
-            Record supplier purchases, select multiple products & vendors, calculate GST and extra charges.
+            Select a vendor to view their purchase history, or log new procurement orders.
           </p>
         </div>
 
@@ -515,59 +603,119 @@ export default function PurchasePage() {
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-slate-500 text-xs font-bold">Registered Vendors</span>
-          <div className="text-2xl font-extrabold text-amber-800 font-mono">{vendors.length} Suppliers</div>
-          <span className="text-[11px] text-amber-700 font-medium">Available for procurement</span>
+          <span className="text-slate-500 text-xs font-bold">Active Suppliers Purchased From</span>
+          <div className="text-2xl font-extrabold text-amber-800 font-mono">{vendorSummaries.length} Vendors</div>
+          <span className="text-[11px] text-amber-700 font-medium">Distinct suppliers with orders</span>
         </div>
       </div>
 
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        {/* Table Top Toolbar */}
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col lg:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="font-extrabold text-slate-900 text-sm sm:text-base whitespace-nowrap">
-              Purchase Orders Register ({purchases.length})
-            </h2>
-            {selectedIds.length > 0 && (
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {selectedIds.length} Selected
-              </span>
+          {selectedVendorNameView ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setSelectedVendorNameView(null)
+                  setSelectedIds([])
+                  setSearchQuery('')
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 hover:text-amber-950 bg-amber-100/90 hover:bg-amber-200 border border-amber-300 px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to All Vendors</span>
+              </button>
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  {selectedVendorNameView} ({filteredSelectedVendorPurchases.length})
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Total Purchases: ₹ {selectedVendorPurchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <h2 className="font-extrabold text-slate-900 text-sm sm:text-base whitespace-nowrap">
+                Vendors Purchase Directory ({filteredVendorSummaries.length})
+              </h2>
+              {selectedVendorSummaryCodes.length > 0 && (
+                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                  {selectedVendorSummaryCodes.length} Selected
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            <div className="relative flex-1 sm:w-56">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder={selectedVendorNameView ? "Search PO #, item, date..." : "Search vendor name, ID..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+
+            {selectedVendorNameView ? (
+              <ExportActionBar
+                title={`Purchase Orders - ${selectedVendorNameView}`}
+                filename={`hetal_purchase_orders_${selectedVendorNameView.replace(/\s+/g, '_')}`}
+                data={exportPurchases}
+                selectedCount={selectedIds.length}
+                excelHeaders={[
+                  { label: 'Order Number', key: 'orderNumber' },
+                  { label: 'Date', key: 'date' },
+                  { label: 'Vendor', key: 'vendor' },
+                  { label: 'Items Purchased', key: 'item' },
+                  { label: 'Quantity', key: 'quantity' },
+                  { label: 'Discount (%)', key: 'discount' },
+                  { label: 'Extra Charges (₹)', key: 'extraCharges' },
+                  { label: 'Extra GST (%)', key: 'extraChargesGst' },
+                  { label: 'Total Paid (₹)', key: 'totalAmount' },
+                ]}
+                pdfHeaders={['PO #', 'Date', 'Vendor', 'Items', 'Qty', 'Extra (₹)', 'Total Paid (₹)']}
+                pdfRows={exportPurchases.map((p) => [
+                  p.orderNumber || p.id,
+                  p.date,
+                  p.vendor,
+                  p.item,
+                  p.quantity,
+                  `₹${(p.extraCharges || 0).toLocaleString()}`,
+                  `₹${(p.totalAmount || 0).toLocaleString()}`,
+                ])}
+              />
+            ) : (
+              <ExportActionBar
+                title="Vendors Purchase Directory"
+                filename="hetal_trading_vendors_purchase_directory"
+                data={exportVendorSummaries}
+                selectedCount={selectedVendorSummaryCodes.length}
+                excelHeaders={[
+                  { label: 'Vendor ID', key: 'vendorCode' },
+                  { label: 'Vendor Name', key: 'vendorName' },
+                  { label: 'Total Orders', key: 'totalOrders' },
+                  { label: 'Total Purchase Amount (₹)', key: 'totalPurchaseAmount' },
+                ]}
+                pdfHeaders={['Vendor ID', 'Vendor Name', 'Total Orders', 'Total Purchase Amount (₹)']}
+                pdfRows={exportVendorSummaries.map((v) => [
+                  v.vendorCode,
+                  v.vendorName,
+                  `${v.totalOrders} Orders`,
+                  `₹${v.totalPurchaseAmount.toLocaleString()}`,
+                ])}
+              />
             )}
           </div>
-
-          <ExportActionBar
-            title="Purchase Orders Register"
-            filename="hetal_trading_purchase_orders"
-            data={exportPurchases}
-            selectedCount={selectedIds.length}
-            excelHeaders={[
-              { label: 'Order Number', key: 'orderNumber' },
-              { label: 'Date', key: 'date' },
-              { label: 'Vendor', key: 'vendor' },
-              { label: 'Items Purchased', key: 'item' },
-              { label: 'Quantity', key: 'quantity' },
-              { label: 'Discount (%)', key: 'discount' },
-              { label: 'Extra Charges (₹)', key: 'extraCharges' },
-              { label: 'Extra GST (%)', key: 'extraChargesGst' },
-              { label: 'Total Paid (₹)', key: 'totalAmount' },
-            ]}
-            pdfHeaders={['PO #', 'Date', 'Vendor', 'Items', 'Qty', 'Extra (₹)', 'Total Paid (₹)']}
-            pdfRows={exportPurchases.map((p) => [
-              p.orderNumber || p.id,
-              p.date,
-              p.vendor,
-              p.item,
-              p.quantity,
-              `₹${(p.extraCharges || 0).toLocaleString()}`,
-              `₹${(p.totalAmount || 0).toLocaleString()}`,
-            ])}
-          />
         </div>
 
         {loading ? (
           <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
-            <span className="text-sm font-semibold">Loading purchase orders from database...</span>
+            <span className="text-sm font-semibold">Loading procurement data from database...</span>
           </div>
         ) : purchases.length === 0 ? (
           <div className="p-12 text-center text-slate-500 space-y-3">
@@ -575,7 +723,8 @@ export default function PurchasePage() {
             <p className="font-semibold text-sm text-slate-700">No Purchase Orders Recorded Yet</p>
             <p className="text-xs text-slate-500">Click "Create Purchase Order" above to log a new purchase entry.</p>
           </div>
-        ) : (
+        ) : !selectedVendorNameView ? (
+          /* PRIMARY VIEW 1: VENDORS PURCHASE DIRECTORY TABLE */
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -583,8 +732,100 @@ export default function PurchasePage() {
                   <th className="py-3 px-3 lg:px-4 w-10 text-center">
                     <input
                       type="checkbox"
-                      checked={purchases.length > 0 && selectedIds.length === purchases.length}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      checked={
+                        filteredVendorSummaries.length > 0 &&
+                        selectedVendorSummaryCodes.length === filteredVendorSummaries.length
+                      }
+                      onChange={(e) => handleSelectAllVendorSummaries(e.target.checked)}
+                      className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
+                  <th className="py-3 px-3 lg:px-4">Vendor ID</th>
+                  <th className="py-3 px-3 lg:px-4">Vendor Name</th>
+                  <th className="py-3 px-3 lg:px-4 text-center">Total Orders</th>
+                  <th className="py-3 px-3 lg:px-4 text-right">Total Purchase Amount (₹)</th>
+                  <th className="py-3 px-3 lg:px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-xs font-medium text-slate-800">
+                {filteredVendorSummaries.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500 font-medium">
+                      No vendor matching "{searchQuery}" found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredVendorSummaries.map((v) => (
+                    <tr
+                      key={v.vendorCode + v.vendorName}
+                      className={`hover:bg-amber-50/60 transition-colors cursor-pointer ${
+                        selectedVendorSummaryCodes.includes(v.vendorCode) ? 'bg-amber-50/40' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedVendorNameView(v.vendorName)
+                        setSearchQuery('')
+                        setSelectedIds([])
+                      }}
+                    >
+                      <td className="py-3.5 px-3 lg:px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedVendorSummaryCodes.includes(v.vendorCode)}
+                          onChange={() => handleToggleSelectVendorSummary(v.vendorCode)}
+                          className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-3.5 px-3 lg:px-4 whitespace-nowrap font-mono font-extrabold text-amber-800 text-xs">
+                        {v.vendorCode}
+                      </td>
+                      <td className="py-3.5 px-3 lg:px-4 font-bold text-slate-900 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-amber-600" />
+                          <span>{v.vendorName}</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-3 lg:px-4 text-center font-mono font-bold">
+                        <span className="bg-slate-100 text-slate-800 border border-slate-200 px-2.5 py-1 rounded-full text-xs">
+                          {v.totalOrders} {v.totalOrders === 1 ? 'Order' : 'Orders'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3 lg:px-4 text-right font-mono font-extrabold text-slate-900 text-sm whitespace-nowrap">
+                        ₹ {v.totalPurchaseAmount.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-3 lg:px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedVendorNameView(v.vendorName)
+                            setSearchQuery('')
+                            setSelectedIds([])
+                          }}
+                          className="inline-flex items-center gap-1.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-2xs transition-colors"
+                        >
+                          <span>View Purchases</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* DRILL-DOWN VIEW 2: SELECTED VENDOR PURCHASES TABLE */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-900 text-white text-[11px] uppercase tracking-wider font-extrabold">
+                  <th className="py-3 px-3 lg:px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredSelectedVendorPurchases.length > 0 &&
+                        selectedIds.length === filteredSelectedVendorPurchases.length
+                      }
+                      onChange={(e) => handleSelectAllPurchases(e.target.checked)}
                       className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
                   </th>
@@ -601,73 +842,81 @@ export default function PurchasePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-xs font-medium text-slate-800">
-                {purchases.map((p) => (
-                  <tr key={p.id} className={`hover:bg-slate-50/80 transition-colors ${selectedIds.includes(p.id) ? 'bg-amber-50/40' : ''}`}>
-                    <td className="py-2.5 px-3 lg:px-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(p.id)}
-                        onChange={() => handleToggleSelect(p.id)}
-                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                      />
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono text-slate-600">
-                      {p.date}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono font-extrabold text-amber-700">
-                      {p.orderNumber}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 font-bold text-slate-900 truncate max-w-[140px] xl:max-w-[180px]">
-                      {p.vendor}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 font-semibold text-slate-800 truncate max-w-[220px] xl:max-w-[300px]">
-                      {p.item}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 text-center font-mono font-bold">
-                      {p.quantity}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 text-center font-mono">
-                      {p.discount ? `${p.discount}%` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 text-right font-mono text-slate-700 whitespace-nowrap">
-                      {p.extraCharges ? `₹${p.extraCharges}` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 text-center font-mono text-amber-800 font-semibold">
-                      {p.extraCharges ? `${p.extraChargesGst}%` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 text-right font-mono font-extrabold text-slate-900 text-sm whitespace-nowrap">
-                      ₹ {p.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="py-2.5 px-3 lg:px-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => {
-                            const msg = `*Hetal Trading Company - Purchase Order*\n📦 Order #: ${p.orderNumber}\n📅 Date: ${p.date}\n🏭 Vendor: ${p.vendor}\n🛍️ Items: ${p.item}\n💰 Total Amount: ₹${p.totalAmount.toLocaleString()}`
-                            shareOnWhatsApp(msg)
-                          }}
-                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                          title="Share Purchase Order on WhatsApp"
-                        >
-                          <Share2 className="w-3.5 h-3.5 text-emerald-700" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(p)}
-                          className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
-                          title="Edit Purchase Order"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeletingPurchaseId(p.id)}
-                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors"
-                          title="Delete Purchase Order"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                {filteredSelectedVendorPurchases.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="py-8 text-center text-slate-500 font-medium">
+                      No purchase orders matching "{searchQuery}" for vendor {selectedVendorNameView}.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredSelectedVendorPurchases.map((p) => (
+                    <tr key={p.id} className={`hover:bg-slate-50/80 transition-colors ${selectedIds.includes(p.id) ? 'bg-amber-50/40' : ''}`}>
+                      <td className="py-2.5 px-3 lg:px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(p.id)}
+                          onChange={() => handleToggleSelectPurchase(p.id)}
+                          className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono text-slate-600">
+                        {p.date}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono font-extrabold text-amber-700">
+                        {p.orderNumber}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 font-bold text-slate-900 truncate max-w-[140px] xl:max-w-[180px]">
+                        {p.vendor}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 font-semibold text-slate-800 truncate max-w-[220px] xl:max-w-[300px]">
+                        {p.item}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 text-center font-mono font-bold">
+                        {p.quantity}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 text-center font-mono">
+                        {p.discount ? `${p.discount}%` : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 text-right font-mono text-slate-700 whitespace-nowrap">
+                        {p.extraCharges ? `₹${p.extraCharges}` : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 text-center font-mono text-amber-800 font-semibold">
+                        {p.extraCharges ? `${p.extraChargesGst}%` : '-'}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 text-right font-mono font-extrabold text-slate-900 text-sm whitespace-nowrap">
+                        ₹ {p.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-3 lg:px-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              const msg = `*Hetal Trading Company - Purchase Order*\n📦 Order #: ${p.orderNumber}\n📅 Date: ${p.date}\n🏭 Vendor: ${p.vendor}\n🛍️ Items: ${p.item}\n💰 Total Amount: ₹${p.totalAmount.toLocaleString()}`
+                              shareOnWhatsApp(msg)
+                            }}
+                            className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                            title="Share Purchase Order on WhatsApp"
+                          >
+                            <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(p)}
+                            className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                            title="Edit Purchase Order"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingPurchaseId(p.id)}
+                            className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors"
+                            title="Delete Purchase Order"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
