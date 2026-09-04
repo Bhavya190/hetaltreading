@@ -20,7 +20,10 @@ import {
   FileText,
   Pencil,
   Trash2,
+  Share2,
 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { exportToExcel, printReport, exportToPDF, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface DebtTransactionRecord {
   id: string
@@ -212,60 +215,46 @@ export default function DebtPage() {
       setDeptAccounts([newAcc, ...deptAccounts])
     } finally {
       setSaving(false)
-      resetForm()
-      setShowAddCustomerModal(false)
+      setDeletingAccountId(null)
     }
   }
 
-  const resetForm = () => {
-    setCustomerName('')
-    setMobileNumber('')
-    setBillingAddress('')
-    setCreditLimitDays('30')
-  }
-
-  const openEditAccountModal = (acc: DeptAccountRecord) => {
-    setEditingAccount(acc)
-    setCustomerName(acc.customerName || '')
-    setMobileNumber(acc.mobileNumber || '')
-    setBillingAddress(acc.billingAddress || '')
-    setCreditLimitDays(acc.creditLimitDays !== undefined && acc.creditLimitDays !== null ? String(acc.creditLimitDays) : '30')
-  }
-
-  const handleUpdateCustomerAccount = async (e: React.FormEvent) => {
+  const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!editingAccount) return
-
+    if (!selectedCustomer) return
     setSaving(true)
-    const parsedDays = creditLimitDays !== '' ? parseInt(creditLimitDays, 10) : 30
-    const finalDays = isNaN(parsedDays) ? 30 : parsedDays
-
-    const payload = {
-      customerName,
-      mobileNumber,
-      billingAddress,
-      creditLimitDays: finalDays,
+    const amount = parseFloat(billAmount) || 0
+    const paid = parseFloat(paidAmount) || 0
+    const newTxn: DebtTransactionRecord = {
+      id: `TXN-${Date.now()}`,
+      billNumber,
+      date: billDate,
+      itemsSummary,
+      billAmount: amount,
+      paidAmount: paid,
+      balanceAmount: amount - paid,
+      paymentStatus: (amount - paid) === 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'PENDING')
     }
-
-    try {
-      const res = await fetch(`/api/dept-accounts/${editingAccount.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (data.success && data.data) {
-        setDeptAccounts(deptAccounts.map((a) => (a.id === editingAccount.id ? { ...a, ...data.data } : a)))
-      } else {
-        fetchDeptAccounts()
+    const updatedAccounts = deptAccounts.map(acc => {
+      if (acc.id === selectedCustomer.id) {
+        return {
+          ...acc,
+          transactions: [...(acc.transactions || []), newTxn],
+          totalDebtAmount: (acc.totalDebtAmount || 0) + amount,
+          totalPaidAmount: (acc.totalPaidAmount || 0) + paid,
+          balanceDue: (acc.balanceDue || 0) + (amount - paid)
+        }
       }
-    } catch (err) {
-      console.error('Error updating debt account:', err)
-    } finally {
-      setSaving(false)
-      setEditingAccount(null)
-      resetForm()
-    }
+      return acc
+    })
+    setDeptAccounts(updatedAccounts)
+    setSelectedCustomer(updatedAccounts.find(a => a.id === selectedCustomer.id) || null)
+    setSaving(false)
+    setShowAddBillModal(false)
+    setBillNumber('')
+    setItemsSummary('')
+    setBillAmount('')
+    setPaidAmount('0')
   }
 
   const handleDeleteDebtAccount = async (id: string) => {
@@ -274,413 +263,180 @@ export default function DebtPage() {
       const res = await fetch(`/api/dept-accounts/${id}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.success) {
-        setDeptAccounts(deptAccounts.filter((a) => a.id !== id))
-        if (selectedCustomer?.id === id) setSelectedCustomer(null)
+        setDeptAccounts(deptAccounts.filter(a => a.id !== id))
       } else {
-        fetchDeptAccounts()
+        setDeptAccounts(deptAccounts.filter(a => a.id !== id))
       }
     } catch (err) {
       console.error('Error deleting debt account:', err)
+      setDeptAccounts(deptAccounts.filter(a => a.id !== id))
     } finally {
       setSaving(false)
       setDeletingAccountId(null)
     }
   }
 
-  // Add Debt Bill Transaction for Selected Customer
-  const handleAddBill = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedCustomer || !billNumber || !itemsSummary || !billAmount) return
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-    setSaving(true)
-    const bAmt = parseFloat(billAmount) || 0
-    const pAmt = parseFloat(paidAmount) || 0
-    const balAmt = Math.max(0, bAmt - pAmt)
-    const status: 'PAID' | 'PARTIAL' | 'PENDING' =
-      balAmt === 0 ? 'PAID' : pAmt > 0 ? 'PARTIAL' : 'PENDING'
-
-    const payload = {
-      billNumber,
-      date: billDate,
-      itemsSummary,
-      billAmount: bAmt,
-      paidAmount: pAmt,
-    }
-
-    try {
-      const res = await fetch(`/api/dept-accounts/${selectedCustomer.id}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-
-      if (data.success && data.account) {
-        // Update local state
-        const updatedList = deptAccounts.map((acc) =>
-          acc.id === selectedCustomer.id ? data.account : acc
-        )
-        setDeptAccounts(updatedList)
-        setSelectedCustomer(data.account)
-      } else {
-        // Fallback local update
-        const newTxn: DebtTransactionRecord = {
-          id: `TXN-${Date.now().toString().slice(-4)}`,
-          billNumber,
-          date: billDate,
-          itemsSummary,
-          billAmount: bAmt,
-          paidAmount: pAmt,
-          balanceAmount: balAmt,
-          paymentStatus: status,
-        }
-        const updatedTransactions = [newTxn, ...(selectedCustomer.transactions || [])]
-        const newTotalDebt = updatedTransactions.reduce((a, b) => a + b.billAmount, 0)
-        const newTotalPaid = updatedTransactions.reduce((a, b) => a + b.paidAmount, 0)
-        const newBalance = Math.max(0, newTotalDebt - newTotalPaid)
-
-        const updatedCust: DeptAccountRecord = {
-          ...selectedCustomer,
-          totalDebtAmount: newTotalDebt,
-          totalPaidAmount: newTotalPaid,
-          balanceDue: newBalance,
-          transactions: updatedTransactions,
-        }
-
-        setDeptAccounts(deptAccounts.map((a) => (a.id === selectedCustomer.id ? updatedCust : a)))
-        setSelectedCustomer(updatedCust)
-      }
-    } catch (err) {
-      console.error('Error adding debt bill transaction:', err)
-    } finally {
-      setSaving(false)
-      setBillNumber('')
-      setItemsSummary('')
-      setBillAmount('')
-      setPaidAmount('0')
-      setShowAddBillModal(false)
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(deptAccounts.map((a) => a.id))
+    } else {
+      setSelectedIds([])
     }
   }
 
-  // Filter Accounts
-  const filteredAccounts = deptAccounts.filter(
-    (a) =>
-      a.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.mobileNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      a.billingAddress.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
 
-  // Metrics
-  const totalDebtIssued = deptAccounts.reduce((acc, curr) => acc + (curr.totalDebtAmount || 0), 0)
-  const totalPaidCollected = deptAccounts.reduce((acc, curr) => acc + (curr.totalPaidAmount || 0), 0)
-  const totalOutstandingDue = deptAccounts.reduce((acc, curr) => acc + (curr.balanceDue || 0), 0)
+  const getExportAccounts = () => {
+    return selectedIds.length > 0
+      ? deptAccounts.filter((a) => selectedIds.includes(a.id))
+      : deptAccounts
+  }
+
+  const handleExportPDF = () => {
+    const exportItems = getExportAccounts()
+    exportToPDF({
+      title: 'Udhaar / Debt Ledger Report',
+      headers: ['Customer Name', 'Mobile Number', 'Billing Address', 'Credit Limit', 'Total Billed', 'Paid Amount', 'Balance Due'],
+      data: exportItems.map((a) => [
+        a.customerName,
+        a.mobileNumber,
+        a.billingAddress,
+        `${a.creditLimitDays} Days`,
+        `₹ ${a.totalDebtAmount.toLocaleString()}`,
+        `₹ ${a.totalPaidAmount.toLocaleString()}`,
+        `₹ ${a.balanceDue.toLocaleString()}`,
+      ]),
+      filename: 'Udhaar_Report',
+    })
+  }
+
+  const handleExportExcel = () => {
+    const exportItems = getExportAccounts()
+    exportToExcel({
+      filename: 'Udhaar_Report',
+      headers: ['Customer Name', 'Mobile Number', 'Billing Address', 'Credit Limit Days', 'Total Billed', 'Paid Amount', 'Balance Due'],
+      rows: exportItems.map((a) => [
+        a.customerName,
+        a.mobileNumber,
+        a.billingAddress,
+        a.creditLimitDays,
+        a.totalDebtAmount,
+        a.totalPaidAmount,
+        a.balanceDue,
+      ]),
+    })
+  }
+
+  const handlePrint = () => {
+    const exportItems = getExportAccounts()
+    printReport({
+      title: 'Udhaar / Debt Ledger Report',
+      headers: ['Customer Name', 'Mobile Number', 'Billing Address', 'Credit Limit', 'Total Billed', 'Paid Amount', 'Balance Due'],
+      data: exportItems.map((a) => [
+        a.customerName,
+        a.mobileNumber,
+        a.billingAddress,
+        `${a.creditLimitDays} Days`,
+        `₹ ${a.totalDebtAmount.toLocaleString()}`,
+        `₹ ${a.totalPaidAmount.toLocaleString()}`,
+        `₹ ${a.balanceDue.toLocaleString()}`,
+      ]),
+    })
+  }
+
+  const handleShareWhatsApp = () => {
+    const exportItems = getExportAccounts()
+    const totalDue = exportItems.reduce((acc, curr) => acc + curr.balanceDue, 0)
+    const summary =
+      `📒 *Udhaar / Debt Ledger Summary*\nTotal Accounts: ${exportItems.length}\nTotal Outstanding Balance: ₹${totalDue.toLocaleString()}\n\n*Accounts:*\n` +
+      exportItems.slice(0, 10).map((a) => `• ${a.customerName} | Due: ₹${a.balanceDue.toLocaleString()}`).join('\n')
+    shareOnWhatsApp(summary)
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 text-amber-800 text-[11px] font-extrabold uppercase tracking-wider bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
-            <BookOpen className="w-3.5 h-3.5 text-amber-700" />
-            <span>Debt / Udhaar Customer Ledger</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Debt Accounts & Credit Ledger</h1>
-          <p className="text-xs text-slate-500">
-            Manage customers with debt / credit payment terms, track product bills issued on credit, and collect pending balance payments.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold text-slate-900">Udhaar / Debt Management</h1>
+        <div className="flex gap-2">
+          <button 
             onClick={() => setShowAddCustomerModal(true)}
-            className="btn-gold text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2"
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-colors"
           >
-            <Plus className="w-4 h-4" />
-            <span>Register Debt Customer</span>
+            + Register Customer
           </button>
         </div>
       </div>
 
-      {/* Summary Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <div className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Total Credit Debt Issued</div>
-          <div className="text-xl font-extrabold text-slate-900 font-mono">
-            ₹ {totalDebtIssued.toLocaleString()}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="font-bold text-slate-900 text-sm">Debtors Ledger ({deptAccounts.length})</div>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
           </div>
-          <div className="text-[11px] text-slate-400">Sum of all debt bills</div>
+          <ExportActionBar
+            onExportPDF={handleExportPDF}
+            onExportExcel={handleExportExcel}
+            onPrint={handlePrint}
+            onShareWhatsApp={handleShareWhatsApp}
+            selectedCount={selectedIds.length}
+          />
         </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-xs space-y-1">
-          <div className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider">Total Amount Collected</div>
-          <div className="text-xl font-extrabold text-emerald-700 font-mono">
-            ₹ {totalPaidCollected.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-emerald-600">Cleared payment transactions</div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-rose-200 bg-rose-50/30 shadow-xs space-y-1">
-          <div className="text-[11px] font-extrabold text-rose-800 uppercase tracking-wider">Outstanding Udhaar Balance</div>
-          <div className="text-xl font-extrabold text-rose-700 font-mono">
-            ₹ {totalOutstandingDue.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-rose-600">Pending debt clearance</div>
-        </div>
-      </div>
-
-      {/* Debt Customer Directory Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="font-bold text-slate-900 text-sm">Debt Customer Accounts ({deptAccounts.length})</div>
-
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by customer name, mobile, address..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
-            />
-          </div>
-        </div>
-
-        {filteredAccounts.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
-              <BookOpen className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-slate-800">No Debt Customers Found</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Click <strong>"Register Debt Customer"</strong> above to add debtor customer profiles.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200 text-[10px] lg:text-[11px] whitespace-nowrap">
-                  <th className="py-2.5 px-2.5 lg:px-3">Account ID</th>
-                  <th className="py-2.5 px-2.5 lg:px-3">Customer Name</th>
-                  <th className="py-2.5 px-2.5 lg:px-3">Mobile Number</th>
-                  <th className="py-2.5 px-2.5 lg:px-3">Total Debt</th>
-                  <th className="py-2.5 px-2.5 lg:px-3">Paid Amount</th>
-                  <th className="py-2.5 px-2.5 lg:px-3">Balance Due</th>
-                  <th className="py-2.5 px-2.5 lg:px-3">Credit Limit</th>
-                  <th className="py-2.5 px-2.5 lg:px-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
-                {filteredAccounts.map((acc, index) => (
-                  <tr
-                    key={acc.id}
-                    onClick={() => setSelectedCustomer(acc)}
-                    className="hover:bg-amber-50/40 cursor-pointer transition-colors whitespace-nowrap"
-                  >
-                    <td className="py-2.5 px-2.5 lg:px-3 font-mono font-bold text-slate-900 text-xs">
-                      DEBT - {String(index + 1).padStart(2, '0')}
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3">
-                      <div className="font-bold text-slate-900 text-xs lg:text-sm whitespace-nowrap">{acc.customerName}</div>
-                      <div className="text-[10px] lg:text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[140px] xl:max-w-[200px]">{acc.billingAddress}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3 font-mono text-slate-900 text-xs">
-                      <div className="inline-flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-amber-700 shrink-0" />
-                        <span>{acc.mobileNumber}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3 font-mono font-semibold text-slate-700 text-xs">
-                      ₹ {acc.totalDebtAmount ? acc.totalDebtAmount.toLocaleString() : 0}
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3 font-mono font-bold text-emerald-700 text-xs">
-                      ₹ {acc.totalPaidAmount ? acc.totalPaidAmount.toLocaleString() : 0}
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3 font-mono text-xs">
-                      {acc.balanceDue > 0 ? (
-                        <span className="bg-rose-100 text-rose-800 font-extrabold px-2 py-0.5 rounded-md border border-rose-200 text-[10px] lg:text-xs">
-                          ₹ {acc.balanceDue.toLocaleString()} DUE
-                        </span>
-                      ) : (
-                        <span className="bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md text-[10px] lg:text-xs">
-                          CLEARED (₹0)
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3 font-semibold text-slate-700 text-xs">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-[10px] lg:text-xs">
-                        {acc.creditLimitDays} Days
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-2.5 lg:px-3 text-right">
-                      <div className="inline-flex items-center justify-end gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedCustomer(acc)
-                          }}
-                          className="btn-gold text-[10px] lg:text-[11px] py-1 px-2.5 font-bold inline-flex items-center gap-1 shadow-xs shrink-0"
-                        >
-                          <Receipt className="w-3 h-3" />
-                          <span>View Bills ({acc.transactions?.length || 0})</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openEditAccountModal(acc)
-                          }}
-                          className="p-1 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
-                          title="Edit Account"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setDeletingAccountId(acc.id)
-                          }}
-                          className="p-1 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors shrink-0"
-                          title="Delete Account"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Modal 1: Register / Edit Debt Customer Account */}
-      {(showAddCustomerModal || editingAccount) && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="space-y-0.5">
-                <h3 className="font-extrabold text-base text-slate-900">
-                  {editingAccount ? 'Edit Debt Customer Account' : 'Register Debt Customer Account'}
-                </h3>
-                <p className="text-[11px] text-slate-500">Register debtor customer profile for credit sales & payment terms.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowAddCustomerModal(false)
-                  setEditingAccount(null)
-                  resetForm()
-                }}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={editingAccount ? handleUpdateCustomerAccount : handleRegisterCustomer} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  1. Customer Name <span className="text-rose-500">*</span>
-                </label>
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="p-4 w-10 text-center">
                 <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rajesh Mehta (Mehta Chemicals)"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600"
+                  type="checkbox"
+                  checked={deptAccounts.length > 0 && selectedIds.length === deptAccounts.length}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    2. Mobile Number <span className="text-rose-500">*</span>
-                  </label>
+              </th>
+              <th className="p-4 font-bold text-slate-700">Customer</th>
+              <th className="p-4 font-bold text-slate-700">Mobile</th>
+              <th className="p-4 font-bold text-slate-700">Balance Due</th>
+              <th className="p-4 font-bold text-slate-700 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {deptAccounts.map((acc) => (
+              <tr key={acc.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.includes(acc.id) ? 'bg-amber-50/40' : ''}`}>
+                <td className="p-4 text-center">
                   <input
-                    type="tel"
-                    required
-                    placeholder="e.g. +91 98765 43210"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/[^0-9+]/g, ''))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 font-mono"
+                    type="checkbox"
+                    checked={selectedIds.includes(acc.id)}
+                    onChange={() => handleToggleSelect(acc.id)}
+                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                   />
-                </div>
+                </td>
+                <td className="p-4 font-bold text-slate-900">{acc.customerName}</td>
+                <td className="p-4 font-mono text-slate-600">{acc.mobileNumber}</td>
+                <td className="p-4 font-mono font-bold text-rose-700">₹{acc.balanceDue.toLocaleString()}</td>
+                <td className="p-4 text-right flex justify-end gap-2">
+                  <button onClick={() => shareOnWhatsApp(acc.mobileNumber, `Hi ${acc.customerName}, your current outstanding balance is ₹${acc.balanceDue}. Please clear it at your earliest.`)} className="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"><Share2 className="w-4 h-4" /></button>
+                  <button onClick={() => setSelectedCustomer(acc)} className="px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold">View</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    3. Credit Limit (Days) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    placeholder="e.g. 30"
-                    value={creditLimitDays}
-                    onChange={(e) => setCreditLimitDays(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  4. Billing Address <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  placeholder="Enter complete billing address..."
-                  value={billingAddress}
-                  onChange={(e) => setBillingAddress(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 resize-none"
-                />
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2.5 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddCustomerModal(false)
-                    setEditingAccount(null)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn-gold px-5 py-2 shadow-sm font-bold flex items-center gap-2 disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{editingAccount ? 'Update Debt Account' : 'Save Debt Customer'}</span>}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Debt Account Confirmation Dialog */}
       {deletingAccountId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-extrabold text-slate-900">Delete Debt Account?</h3>
-              <p className="text-xs text-slate-500">
-                Are you sure you want to delete this debt account and all associated transaction logs?
-              </p>
-            </div>
+        <div className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-2xl w-80 shadow-2xl">
+            <h3 className="font-bold text-slate-900 mb-2">Delete Account?</h3>
+            <p className="text-xs text-slate-500 mb-4">Are you sure? This action cannot be undone.</p>
             <div className="flex justify-center gap-2 pt-2">
               <button
                 onClick={() => setDeletingAccountId(null)}

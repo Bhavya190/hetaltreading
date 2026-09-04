@@ -16,7 +16,10 @@ import {
   Search,
   ChevronDown,
   Layers,
+  Share2,
 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface PurchaseRecord {
   id: string
@@ -446,6 +449,26 @@ export default function PurchasePage() {
     (l) => l.productName || l.productSearch || l.q > 0
   )
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(purchases.map((p) => p.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const exportPurchases = selectedIds.length > 0
+    ? purchases.filter((p) => selectedIds.includes(p.id))
+    : purchases
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -500,10 +523,45 @@ export default function PurchasePage() {
 
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <h2 className="font-extrabold text-slate-900 text-sm sm:text-base">
-            Purchase Orders Register ({purchases.length})
-          </h2>
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="font-extrabold text-slate-900 text-sm sm:text-base whitespace-nowrap">
+              Purchase Orders Register ({purchases.length})
+            </h2>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
+          </div>
+
+          <ExportActionBar
+            title="Purchase Orders Register"
+            filename="hetal_trading_purchase_orders"
+            data={exportPurchases}
+            selectedCount={selectedIds.length}
+            excelHeaders={[
+              { label: 'Order Number', key: 'orderNumber' },
+              { label: 'Date', key: 'date' },
+              { label: 'Vendor', key: 'vendor' },
+              { label: 'Items Purchased', key: 'item' },
+              { label: 'Quantity', key: 'quantity' },
+              { label: 'Discount (%)', key: 'discount' },
+              { label: 'Extra Charges (₹)', key: 'extraCharges' },
+              { label: 'Extra GST (%)', key: 'extraChargesGst' },
+              { label: 'Total Paid (₹)', key: 'totalAmount' },
+            ]}
+            pdfHeaders={['PO #', 'Date', 'Vendor', 'Items', 'Qty', 'Extra (₹)', 'Total Paid (₹)']}
+            pdfRows={exportPurchases.map((p) => [
+              p.orderNumber || p.id,
+              p.date,
+              p.vendor,
+              p.item,
+              p.quantity,
+              `₹${(p.extraCharges || 0).toLocaleString()}`,
+              `₹${(p.totalAmount || 0).toLocaleString()}`,
+            ])}
+          />
         </div>
 
         {loading ? (
@@ -522,6 +580,14 @@ export default function PurchasePage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-900 text-white text-[11px] uppercase tracking-wider font-extrabold">
+                  <th className="py-3 px-3 lg:px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={purchases.length > 0 && selectedIds.length === purchases.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-3 lg:px-4">Date</th>
                   <th className="py-3 px-3 lg:px-4">Order #</th>
                   <th className="py-3 px-3 lg:px-4">Vendor</th>
@@ -536,7 +602,15 @@ export default function PurchasePage() {
               </thead>
               <tbody className="divide-y divide-slate-200 text-xs font-medium text-slate-800">
                 {purchases.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={p.id} className={`hover:bg-slate-50/80 transition-colors ${selectedIds.includes(p.id) ? 'bg-amber-50/40' : ''}`}>
+                    <td className="py-2.5 px-3 lg:px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(p.id)}
+                        onChange={() => handleToggleSelect(p.id)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono text-slate-600">
                       {p.date}
                     </td>
@@ -566,6 +640,16 @@ export default function PurchasePage() {
                     </td>
                     <td className="py-2.5 px-3 lg:px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            const msg = `*Hetal Trading Company - Purchase Order*\n📦 Order #: ${p.orderNumber}\n📅 Date: ${p.date}\n🏭 Vendor: ${p.vendor}\n🛍️ Items: ${p.item}\n💰 Total Amount: ₹${p.totalAmount.toLocaleString()}`
+                            shareOnWhatsApp(msg)
+                          }}
+                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                          title="Share Purchase Order on WhatsApp"
+                        >
+                          <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                        </button>
                         <button
                           onClick={() => openEditModal(p)}
                           className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"

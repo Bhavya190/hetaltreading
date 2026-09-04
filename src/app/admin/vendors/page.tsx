@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Truck, Plus, Mail, Phone, MapPin, Building2, CheckCircle2, X, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Truck, Plus, Mail, Phone, MapPin, Building2, CheckCircle2, X, Loader2, Pencil, Trash2, Share2 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface VendorRecord {
   id: string
@@ -163,6 +165,88 @@ export default function VendorsPage() {
     }
   }
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(vendors.map((v) => v.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const getExportVendors = () => {
+    return selectedIds.length > 0
+      ? vendors.filter((v) => selectedIds.includes(v.id))
+      : vendors
+  }
+
+  const handleExportPDF = () => {
+    const exportItems = getExportVendors()
+    exportToPDF({
+      title: 'Vendors & Suppliers Directory Report',
+      headers: ['Vendor Code', 'Company Name', 'Supply Category', 'Key Contact', 'Phone', 'Location'],
+      data: exportItems.map((v) => [
+        v.vendorCode || v.id,
+        v.name,
+        v.category,
+        v.contactPerson,
+        v.phone,
+        v.city || '-',
+      ]),
+      filename: 'Vendors_Directory',
+    })
+  }
+
+  const handleExportExcel = () => {
+    const exportItems = getExportVendors()
+    exportToExcel({
+      filename: 'Vendors_Directory',
+      headers: ['Vendor Code', 'Company Name', 'Supply Category', 'Key Contact', 'Phone', 'City'],
+      rows: exportItems.map((v) => [
+        v.vendorCode || v.id,
+        v.name,
+        v.category,
+        v.contactPerson,
+        v.phone,
+        v.city || '-',
+      ]),
+    })
+  }
+
+  const handlePrint = () => {
+    const exportItems = getExportVendors()
+    printReport({
+      title: 'Vendors & Suppliers Directory Report',
+      headers: ['Vendor Code', 'Company Name', 'Supply Category', 'Key Contact', 'Phone', 'Location'],
+      data: exportItems.map((v) => [
+        v.vendorCode || v.id,
+        v.name,
+        v.category,
+        v.contactPerson,
+        v.phone,
+        v.city || '-',
+      ]),
+    })
+  }
+
+  const handleShareWhatsApp = () => {
+    const exportItems = getExportVendors()
+    const summary =
+      `🚚 *Vendors & Suppliers Directory*\nTotal Vendors: ${exportItems.length}\n\n*Recent Suppliers:*\n` +
+      exportItems
+        .slice(0, 10)
+        .map((v) => `• ${v.name} (${v.category}) | Contact: ${v.contactPerson} (${v.phone})`)
+        .join('\n')
+    shareOnWhatsApp(summary)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -188,8 +272,22 @@ export default function VendorsPage() {
 
       {/* Vendors Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-          <div className="font-bold text-slate-900 text-sm">Active Suppliers & Vendors ({vendors.length})</div>
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="font-bold text-slate-900 text-sm">Active Suppliers & Vendors ({vendors.length})</div>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
+          </div>
+          <ExportActionBar
+            onExportPDF={handleExportPDF}
+            onExportExcel={handleExportExcel}
+            onPrint={handlePrint}
+            onShareWhatsApp={handleShareWhatsApp}
+            selectedCount={selectedIds.length}
+          />
         </div>
 
         {loading ? (
@@ -214,6 +312,14 @@ export default function VendorsPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-3 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={vendors.length > 0 && selectedIds.length === vendors.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">Vendor ID</th>
                   <th className="py-3 px-4">Company Name</th>
                   <th className="py-3 px-4">Supply Category</th>
@@ -224,7 +330,15 @@ export default function VendorsPage() {
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
                 {vendors.map((v) => (
-                  <tr key={v.id} className="hover:bg-slate-50">
+                  <tr key={v.id} className={`hover:bg-slate-50 ${selectedIds.includes(v.id) ? 'bg-amber-50/40' : ''}`}>
+                    <td className="py-3.5 px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(v.id)}
+                        onChange={() => handleToggleSelect(v.id)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900">{v.vendorCode || v.id}</td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{v.name}</div>
@@ -244,6 +358,16 @@ export default function VendorsPage() {
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => {
+                          const msg = `🚚 *Vendor Contact Details*\nVendor Code: ${v.vendorCode || v.id}\nCompany: ${v.name}\nCategory: ${v.category}\nContact Person: ${v.contactPerson}\nPhone: ${v.phone}\nLocation: ${v.city || '-'}`
+                          shareOnWhatsApp(msg, v.phone)
+                        }}
+                        className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
+                        title="Share Contact on WhatsApp"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEditModal(v)}
                         className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"

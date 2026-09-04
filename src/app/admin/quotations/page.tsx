@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, Search, Eye, Mail, Building2, CheckCircle2, Clock, X, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { FileText, Plus, Search, Eye, Mail, Building2, CheckCircle2, Clock, X, Loader2, Pencil, Trash2, Share2 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface QuoteRecord {
   id: string
@@ -192,6 +194,67 @@ export default function QuotationsPage() {
     }
   }
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(quotes.map((q) => q.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const getExportQuotes = () => {
+    return selectedIds.length > 0
+      ? quotes.filter((q) => selectedIds.includes(q.id))
+      : quotes
+  }
+
+  const handleExportPDF = () => {
+    const exportItems = getExportQuotes()
+    exportToPDF({
+      title: 'Quotations & RFQs Report',
+      headers: ['RFQ ID', 'Date', 'Client Name', 'Company', 'Product Requested', 'Quantity', 'Destination', 'Status'],
+      data: exportItems.map((q) => [q.id, q.date, q.clientName, q.company, q.product, q.qty, q.delivery, q.status]),
+      filename: 'Quotations_Report',
+    })
+  }
+
+  const handleExportExcel = () => {
+    const exportItems = getExportQuotes()
+    exportToExcel({
+      filename: 'Quotations_Report',
+      headers: ['RFQ ID', 'Date', 'Client Name', 'Company', 'Product Requested', 'Quantity', 'Destination', 'Status'],
+      rows: exportItems.map((q) => [q.id, q.date, q.clientName, q.company, q.product, q.qty, q.delivery, q.status]),
+    })
+  }
+
+  const handlePrint = () => {
+    const exportItems = getExportQuotes()
+    printReport({
+      title: 'Quotations & RFQs Report',
+      headers: ['RFQ ID', 'Date', 'Client Name', 'Company', 'Product Requested', 'Quantity', 'Destination', 'Status'],
+      data: exportItems.map((q) => [q.id, q.date, q.clientName, q.company, q.product, q.qty, q.delivery, q.status]),
+    })
+  }
+
+  const handleShareWhatsApp = () => {
+    const exportItems = getExportQuotes()
+    const summary =
+      `📄 *Quotations & RFQs Pipeline*\nTotal Quotes: ${exportItems.length}\n\n*Recent Quotes:*\n` +
+      exportItems
+        .slice(0, 10)
+        .map((q) => `• ${q.id} | ${q.clientName} (${q.company}) | ${q.product} (${q.qty}) - Status: ${q.status}`)
+        .join('\n')
+    shareOnWhatsApp(summary)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -217,8 +280,22 @@ export default function QuotationsPage() {
 
       {/* Quotations Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-          <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({quotes.length})</div>
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({quotes.length})</div>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
+          </div>
+          <ExportActionBar
+            onExportPDF={handleExportPDF}
+            onExportExcel={handleExportExcel}
+            onPrint={handlePrint}
+            onShareWhatsApp={handleShareWhatsApp}
+            selectedCount={selectedIds.length}
+          />
         </div>
 
         {loading ? (
@@ -243,6 +320,14 @@ export default function QuotationsPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-3 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={quotes.length > 0 && selectedIds.length === quotes.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">RFQ ID</th>
                   <th className="py-3 px-4">Client / Company</th>
                   <th className="py-3 px-4">Product Requested</th>
@@ -254,7 +339,15 @@ export default function QuotationsPage() {
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
                 {quotes.map((q) => (
-                  <tr key={q.id} className="hover:bg-slate-50">
+                  <tr key={q.id} className={`hover:bg-slate-50 ${selectedIds.includes(q.id) ? 'bg-amber-50/40' : ''}`}>
+                    <td className="py-3.5 px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(q.id)}
+                        onChange={() => handleToggleSelect(q.id)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900">{q.id}</td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{q.clientName}</div>
@@ -277,6 +370,16 @@ export default function QuotationsPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => {
+                          const msg = `📄 *Quotation Details*\nRFQ ID: ${q.id}\nClient: ${q.clientName}\nCompany: ${q.company}\nProduct: ${q.product}\nQuantity: ${q.qty}\nDelivery: ${q.delivery}\nStatus: ${q.status}`
+                          shareOnWhatsApp(msg)
+                        }}
+                        className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
+                        title="Share on WhatsApp"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEditModal(q)}
                         className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"

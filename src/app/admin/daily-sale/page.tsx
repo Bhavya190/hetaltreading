@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   TrendingUp,
   Plus,
@@ -17,7 +17,10 @@ import {
   Pencil,
   User,
   Hash,
+  Share2,
 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface SalesGridRow {
   id: string
@@ -28,7 +31,7 @@ export interface SalesGridRow {
   unit: string
   quantity: string
   unitPrice: number
-  amount: number
+  amount: string | number
   discount: string
   discountedTotal: number
 }
@@ -90,6 +93,22 @@ export default function DailySalePage() {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const customerDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowCustomerDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
   const [selectedSaleDetail, setSelectedSaleDetail] = useState<DailySaleRecord | null>(null)
   const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null)
 
@@ -345,6 +364,27 @@ export default function DailySalePage() {
     )
   }
 
+  // Handle Manual Amount Change in a Grid Row
+  const handleAmountChange = (rowId: string, val: string) => {
+    const cleanVal = val.replace(/[^0-9.]/g, '')
+    const amt = parseFloat(cleanVal) || 0
+
+    setGridRows((prevRows) =>
+      prevRows.map((row) => {
+        if (row.id !== rowId) return row
+
+        const disc = parseFloat(row.discount) || 0
+        const net = Math.max(0, amt - disc)
+
+        return {
+          ...row,
+          amount: cleanVal,
+          discountedTotal: net,
+        }
+      })
+    )
+  }
+
   // Handle Discount Change in a Grid Row
   const handleDiscountChange = (rowId: string, val: string) => {
     const cleanVal = val.replace(/[^0-9.]/g, '')
@@ -354,7 +394,8 @@ export default function DailySalePage() {
       prevRows.map((row) => {
         if (row.id !== rowId) return row
 
-        const net = Math.max(0, row.amount - disc)
+        const amt = parseFloat(String(row.amount)) || 0
+        const net = Math.max(0, amt - disc)
 
         return {
           ...row,
@@ -454,7 +495,7 @@ export default function DailySalePage() {
             unit: r.unit,
             quantity: parseFloat(r.quantity) || 1,
             unitPrice: r.unitPrice,
-            amount: r.amount,
+            amount: parseFloat(String(r.amount)) || 0,
             discount: parseFloat(r.discount) || 0,
             netTotal: r.discountedTotal,
           })),
@@ -480,7 +521,7 @@ export default function DailySalePage() {
           unit: r.unit,
           quantity: parseFloat(r.quantity) || 1,
           unitPrice: r.unitPrice,
-          amount: r.amount,
+          amount: parseFloat(String(r.amount)) || 0,
           discount: parseFloat(r.discount) || 0,
           netTotal: r.discountedTotal,
         })),
@@ -492,12 +533,33 @@ export default function DailySalePage() {
     }
   }
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
   // Filter Sales Directory
   const filteredSales = sales.filter(
     (s) =>
       s.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.customerName.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredSales.map((s) => s.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const exportSales = selectedIds.length > 0
+    ? filteredSales.filter((s) => selectedIds.includes(s.id))
+    : filteredSales
 
   const totalSalesRevenue = sales.reduce((acc, curr) => acc + (curr.grandTotal || 0), 0)
 
@@ -552,18 +614,51 @@ export default function DailySalePage() {
 
       {/* Daily Sales Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="font-bold text-slate-900 text-sm">Daily Sales Register ({sales.length})</div>
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="font-bold text-slate-900 text-sm whitespace-nowrap">Daily Sales Register ({sales.length})</div>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
+          </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by bill number or customer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
+          <div className="flex flex-wrap items-center justify-end gap-3 w-full lg:w-auto">
+            <ExportActionBar
+              title="Daily Sales Register"
+              filename="hetal_trading_daily_sales"
+              data={exportSales}
+              selectedCount={selectedIds.length}
+              excelHeaders={[
+                { label: 'Bill Number', key: 'billNumber' },
+                { label: 'Date', key: 'date' },
+                { label: 'Customer Name', key: 'customerName' },
+                { label: 'Subtotal (₹)', key: 'subtotal' },
+                { label: 'Extra Charges (₹)', key: 'extraCharges' },
+                { label: 'Grand Total (₹)', key: 'grandTotal' },
+              ]}
+              pdfHeaders={['Bill #', 'Date', 'Customer Name', 'Subtotal (₹)', 'Extra (₹)', 'Grand Total (₹)']}
+              pdfRows={exportSales.map((s) => [
+                s.billNumber,
+                s.date,
+                s.customerName,
+                `₹${(s.subtotal || 0).toLocaleString()}`,
+                `₹${(s.extraCharges || 0).toLocaleString()}`,
+                `₹${(s.grandTotal || 0).toLocaleString()}`,
+              ])}
             />
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by bill number or customer..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900 font-medium"
+              />
+            </div>
           </div>
         </div>
 
@@ -584,6 +679,14 @@ export default function DailySalePage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-3 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredSales.length > 0 && selectedIds.length === filteredSales.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">Bill Number</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Customer Name</th>
@@ -599,8 +702,16 @@ export default function DailySalePage() {
                   <tr
                     key={sale.id}
                     onClick={() => setSelectedSaleDetail(sale)}
-                    className="hover:bg-amber-50/40 cursor-pointer transition-colors"
+                    className={`hover:bg-amber-50/40 cursor-pointer transition-colors ${selectedIds.includes(sale.id) ? 'bg-amber-50/60' : ''}`}
                   >
+                    <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(sale.id)}
+                        onChange={(e) => handleToggleSelect(sale.id, e as any)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-amber-900 bg-amber-50/40 rounded-lg">
                       {sale.billNumber}
                     </td>
@@ -621,6 +732,17 @@ export default function DailySalePage() {
                       ₹ {sale.grandTotal ? sale.grandTotal.toLocaleString() : 0}
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const msg = `*Hetal Trading Company - Sales Bill*\n📄 Bill #: ${sale.billNumber}\n📅 Date: ${sale.date}\n👤 Customer: ${sale.customerName}\n💰 Grand Total: ₹${(sale.grandTotal || 0).toLocaleString()}`
+                          shareOnWhatsApp(msg)
+                        }}
+                        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors inline-block"
+                        title="Share Invoice on WhatsApp"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -682,7 +804,7 @@ export default function DailySalePage() {
                     </div>
 
                     {/* SELECT CUSTOMER */}
-                    <div className="relative">
+                    <div className="relative" ref={customerDropdownRef}>
                       <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
                         SELECT CUSTOMER
                       </label>
@@ -692,10 +814,16 @@ export default function DailySalePage() {
                           required
                           placeholder="Search or type customer name..."
                           value={customerName}
+                          onClick={() => setShowCustomerDropdown(true)}
                           onFocus={() => setShowCustomerDropdown(true)}
                           onChange={(e) => {
                             setCustomerName(e.target.value)
                             setShowCustomerDropdown(true)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape' || e.key === 'Enter' || e.key === 'Tab') {
+                              setShowCustomerDropdown(false)
+                            }
                           }}
                           className="w-full border border-slate-300 rounded-xl pl-3.5 pr-8 py-2 text-xs text-slate-900 bg-white focus:outline-none focus:border-amber-600 font-semibold"
                         />
@@ -708,21 +836,18 @@ export default function DailySalePage() {
                         </button>
                       </div>
 
-                      {/* Searchable Floating Customer Dropdown Menu */}
+                      {/* Searchable Floating Customer Dropdown Menu (Only shown when open and has matching debt customers) */}
                       {showCustomerDropdown && (
-                        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
-                          {debtCustomers.filter((c) =>
+                        (() => {
+                          const matchingDebtCustomers = debtCustomers.filter((c) =>
                             c.customerName.toLowerCase().includes(customerName.toLowerCase())
-                          ).length === 0 ? (
-                            <div className="p-3 text-xs text-slate-400 text-center font-medium">
-                              No matching debt customer (typing custom name: "{customerName}")
-                            </div>
-                          ) : (
-                            debtCustomers
-                              .filter((c) =>
-                                c.customerName.toLowerCase().includes(customerName.toLowerCase())
-                              )
-                              .map((cust) => (
+                          )
+
+                          if (matchingDebtCustomers.length === 0) return null
+
+                          return (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto divide-y divide-slate-100">
+                              {matchingDebtCustomers.map((cust) => (
                                 <button
                                   key={cust.id}
                                   type="button"
@@ -735,9 +860,10 @@ export default function DailySalePage() {
                                   <div className="font-bold text-slate-800">{cust.customerName}</div>
                                   <div className="text-[10px] font-mono text-slate-400">{cust.mobileNumber}</div>
                                 </button>
-                              ))
-                          )}
-                        </div>
+                              ))}
+                            </div>
+                          )
+                        })()
                       )}
                     </div>
 
@@ -833,9 +959,18 @@ export default function DailySalePage() {
                               </div>
                             </td>
 
-                            {/* AMOUNT (₹) */}
-                            <td className="py-3 px-3 font-mono font-semibold text-slate-800">
-                              ₹{row.amount.toLocaleString()}
+                            {/* AMOUNT (₹) - Auto-calculated but editable */}
+                            <td className="py-3 px-3">
+                              <div className="relative flex items-center">
+                                <span className="absolute left-2.5 text-xs text-slate-400 font-mono">₹</span>
+                                <input
+                                  type="text"
+                                  placeholder="0"
+                                  value={row.amount}
+                                  onChange={(e) => handleAmountChange(row.id, e.target.value)}
+                                  className="w-24 border border-slate-300 rounded-xl pl-6 pr-2 py-1 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-600 bg-white"
+                                />
+                              </div>
                             </td>
 
                             {/* DISCOUNT (₹) */}

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Phone, MapPin, Clock, X, Search, ShieldCheck, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Users, Plus, Phone, MapPin, Clock, X, Search, ShieldCheck, Loader2, Pencil, Trash2, Share2 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface CustomerRecord {
   id: string
@@ -156,12 +158,85 @@ export default function CustomersPage() {
     }
   }
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
   const filteredCustomers = customers.filter(
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.mobileNumber.includes(searchTerm) ||
       c.billingAddress.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredCustomers.map((c) => c.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const getExportData = () => {
+    return selectedIds.length > 0
+      ? filteredCustomers.filter((c) => selectedIds.includes(c.id))
+      : filteredCustomers
+  }
+
+  const handleExportPDF = () => {
+    const exportItems = getExportData()
+    exportToPDF({
+      title: 'Customer Directory Report',
+      headers: ['Customer Name', 'Mobile Number', 'Billing Address', 'Credit Limit', 'Status'],
+      data: exportItems.map((c) => [
+        c.name,
+        c.mobileNumber,
+        c.billingAddress,
+        `${c.creditLimitDays} Days`,
+        c.status,
+      ]),
+      filename: 'Customer_Directory',
+    })
+  }
+
+  const handleExportExcel = () => {
+    const exportItems = getExportData()
+    exportToExcel({
+      filename: 'Customer_Directory',
+      headers: ['Customer Name', 'Mobile Number', 'Billing Address', 'Credit Limit Days', 'Status'],
+      rows: exportItems.map((c) => [c.name, c.mobileNumber, c.billingAddress, c.creditLimitDays, c.status]),
+    })
+  }
+
+  const handlePrint = () => {
+    const exportItems = getExportData()
+    printReport({
+      title: 'Customer Directory Report',
+      headers: ['Customer Name', 'Mobile Number', 'Billing Address', 'Credit Limit', 'Status'],
+      data: exportItems.map((c) => [
+        c.name,
+        c.mobileNumber,
+        c.billingAddress,
+        `${c.creditLimitDays} Days`,
+        c.status,
+      ]),
+    })
+  }
+
+  const handleShareWhatsApp = () => {
+    const exportItems = getExportData()
+    const summary =
+      `👥 *Customer Directory Summary*\nTotal Customers: ${exportItems.length}\n\n*Selected / Recent Customers:*\n` +
+      exportItems
+        .slice(0, 10)
+        .map((c) => `• ${c.name} | Mob: ${c.mobileNumber} | Credit: ${c.creditLimitDays} Days`)
+        .join('\n')
+    shareOnWhatsApp(summary)
+  }
 
   return (
     <div className="space-y-6">
@@ -191,17 +266,33 @@ export default function CustomersPage() {
 
       {/* Customer Directory Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="font-bold text-slate-900 text-sm">Active Buyers Directory ({filteredCustomers.length})</div>
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search customer name or mobile..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+            <div className="font-bold text-slate-900 text-sm">Active Buyers Directory ({filteredCustomers.length})</div>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            <ExportActionBar
+              onExportPDF={handleExportPDF}
+              onExportExcel={handleExportExcel}
+              onPrint={handlePrint}
+              onShareWhatsApp={handleShareWhatsApp}
+              selectedCount={selectedIds.length}
             />
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search customer name or mobile..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
+              />
+            </div>
           </div>
         </div>
 
@@ -227,6 +318,14 @@ export default function CustomersPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-3 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredCustomers.length > 0 && selectedIds.length === filteredCustomers.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">Customer Name</th>
                   <th className="py-3 px-4">Mobile Number</th>
                   <th className="py-3 px-4">Billing Address</th>
@@ -237,7 +336,15 @@ export default function CustomersPage() {
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
                 {filteredCustomers.map((cust) => (
-                  <tr key={cust.id} className="hover:bg-slate-50">
+                  <tr key={cust.id} className={`hover:bg-slate-50 ${selectedIds.includes(cust.id) ? 'bg-amber-50/40' : ''}`}>
+                    <td className="py-3.5 px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(cust.id)}
+                        onChange={() => handleToggleSelect(cust.id)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900">{cust.name}</td>
                     <td className="py-3.5 px-4 font-mono text-slate-700">{cust.mobileNumber}</td>
                     <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate">{cust.billingAddress}</td>
@@ -248,6 +355,16 @@ export default function CustomersPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-1">
+                      <button
+                        onClick={() => {
+                          const msg = `👥 *Customer Contact Details*\nName: ${cust.name}\nMobile: ${cust.mobileNumber}\nAddress: ${cust.billingAddress}\nCredit Limit: ${cust.creditLimitDays} Days\nStatus: ${cust.status}`
+                          shareOnWhatsApp(msg, cust.mobileNumber)
+                        }}
+                        className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
+                        title="Share Contact on WhatsApp"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEditModal(cust)}
                         className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"

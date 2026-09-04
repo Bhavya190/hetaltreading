@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, Plus, Search, X, Loader2, Tag, Percent, Pencil, Trash2 } from 'lucide-react'
+import { Package, Plus, Search, X, Loader2, Tag, Percent, Pencil, Trash2, Share2 } from 'lucide-react'
+import ExportActionBar from '@/components/ExportActionBar'
+import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface ProductRecord {
   id: string
@@ -174,6 +176,89 @@ export default function AdminProductsPage() {
       (p.serialNumber && p.serialNumber.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredProducts.map((p) => p.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const getExportProducts = () => {
+    return selectedIds.length > 0
+      ? filteredProducts.filter((p) => selectedIds.includes(p.id))
+      : filteredProducts
+  }
+
+  const handleExportPDF = () => {
+    const exportItems = getExportProducts()
+    exportToPDF({
+      title: 'Products Directory & Stock Inventory Report',
+      headers: ['Serial / SKU', 'Product Name', 'Purchase Price', 'Selling Price', 'GST Rate', 'Current Stock'],
+      data: exportItems.map((p) => [
+        p.serialNumber,
+        p.name,
+        `₹ ${p.purchasePrice ? p.purchasePrice.toLocaleString() : 0} / ${p.unit}`,
+        `₹ ${p.sellingPrice ? p.sellingPrice.toLocaleString() : 0} / ${p.unit}`,
+        `${p.gstRate}%`,
+        `${p.inventoryStock || 0} ${p.unit}`,
+      ]),
+      filename: 'Products_Directory',
+    })
+  }
+
+  const handleExportExcel = () => {
+    const exportItems = getExportProducts()
+    exportToExcel({
+      filename: 'Products_Directory',
+      headers: ['SKU Serial', 'Product Name', 'Purchase Price', 'Selling Price', 'Unit', 'GST Rate (%)', 'Inventory Stock'],
+      rows: exportItems.map((p) => [
+        p.serialNumber,
+        p.name,
+        p.purchasePrice || 0,
+        p.sellingPrice || 0,
+        p.unit,
+        p.gstRate,
+        p.inventoryStock || 0,
+      ]),
+    })
+  }
+
+  const handlePrint = () => {
+    const exportItems = getExportProducts()
+    printReport({
+      title: 'Products Directory & Stock Inventory Report',
+      headers: ['Serial / SKU', 'Product Name', 'Purchase Price', 'Selling Price', 'GST Rate', 'Current Stock'],
+      data: exportItems.map((p) => [
+        p.serialNumber,
+        p.name,
+        `₹ ${p.purchasePrice ? p.purchasePrice.toLocaleString() : 0} / ${p.unit}`,
+        `₹ ${p.sellingPrice ? p.sellingPrice.toLocaleString() : 0} / ${p.unit}`,
+        `${p.gstRate}%`,
+        `${p.inventoryStock || 0} ${p.unit}`,
+      ]),
+    })
+  }
+
+  const handleShareWhatsApp = () => {
+    const exportItems = getExportProducts()
+    const summary =
+      `📦 *Products & Inventory Catalogue*\nTotal Products: ${exportItems.length}\n\n*Top Products:*\n` +
+      exportItems
+        .slice(0, 10)
+        .map((p) => `• ${p.name} (${p.serialNumber}) | Sell Price: ₹${p.sellingPrice}/${p.unit} | Stock: ${p.inventoryStock || 0} ${p.unit}`)
+        .join('\n')
+    shareOnWhatsApp(summary)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -199,17 +284,33 @@ export default function AdminProductsPage() {
 
       {/* Product Directory Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="font-bold text-slate-900 text-sm">Product Catalogue ({filteredProducts.length})</div>
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search serial number or product name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+            <div className="font-bold text-slate-900 text-sm">Product Catalogue ({filteredProducts.length})</div>
+            {selectedIds.length > 0 && (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {selectedIds.length} Selected
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            <ExportActionBar
+              onExportPDF={handleExportPDF}
+              onExportExcel={handleExportExcel}
+              onPrint={handlePrint}
+              onShareWhatsApp={handleShareWhatsApp}
+              selectedCount={selectedIds.length}
             />
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search serial number or product name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
+              />
+            </div>
           </div>
         </div>
 
@@ -235,6 +336,14 @@ export default function AdminProductsPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200 text-[11px] whitespace-nowrap">
+                  <th className="py-3 px-4 w-10 text-center whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={filteredProducts.length > 0 && selectedIds.length === filteredProducts.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4 whitespace-nowrap">Serial / SKU</th>
                   <th className="py-3 px-4 whitespace-nowrap">Product Name</th>
                   <th className="py-3 px-4 whitespace-nowrap">Purchase Price</th>
@@ -246,7 +355,15 @@ export default function AdminProductsPage() {
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
                 {filteredProducts.map((prod) => (
-                  <tr key={prod.id} className="hover:bg-slate-50 whitespace-nowrap">
+                  <tr key={prod.id} className={`hover:bg-slate-50 whitespace-nowrap ${selectedIds.includes(prod.id) ? 'bg-amber-50/40' : ''}`}>
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(prod.id)}
+                        onChange={() => handleToggleSelect(prod.id)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">{prod.serialNumber}</td>
                     <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">{prod.name}</td>
                     <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">₹ {prod.purchasePrice ? prod.purchasePrice.toLocaleString() : 0} / {prod.unit}</td>
@@ -261,6 +378,16 @@ export default function AdminProductsPage() {
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          const msg = `📦 *Product Specification*\nSKU: ${prod.serialNumber}\nName: ${prod.name}\nPurchase Price: ₹${prod.purchasePrice}/${prod.unit}\nSelling Price: ₹${prod.sellingPrice}/${prod.unit}\nGST Rate: ${prod.gstRate}%\nCurrent Stock: ${prod.inventoryStock || 0} ${prod.unit}`
+                          shareOnWhatsApp(msg)
+                        }}
+                        className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
+                        title="Share Product on WhatsApp"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEditModal(prod)}
                         className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"
