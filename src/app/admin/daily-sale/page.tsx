@@ -257,7 +257,12 @@ export default function DailySalePage() {
       const resSales = await fetch('/api/daily-sales')
       const dataSales = await resSales.json()
       if (dataSales.success && Array.isArray(dataSales.data)) {
-        setSales(dataSales.data)
+        setSales(
+          dataSales.data.map((s: any) => ({
+            ...s,
+            date: s.date ? s.date.split('T')[0] : new Date().toISOString().split('T')[0],
+          }))
+        )
       } else {
         setSales([])
       }
@@ -535,8 +540,58 @@ export default function DailySalePage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  // Filter Sales Directory
-  const filteredSales = sales.filter(
+  // Date Filter States (Default: Today)
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [dateFilterMode, setDateFilterMode] = useState<'TODAY' | 'RANGE' | 'ALL'>('TODAY')
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
+
+  const formatDateLabel = (dStr: string) => {
+    if (!dStr) return '-'
+    const clean = dStr.split('T')[0]
+    const parts = clean.split('-')
+    if (parts.length === 3) {
+      const [y, m, d] = parts
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const monthName = months[parseInt(m, 10) - 1] || m
+      return `${d} ${monthName} ${y}`
+    }
+    return clean
+  }
+
+  const handleQuickPreset = (preset: '7days' | 'month') => {
+    const now = new Date()
+    const today = now.toISOString().split('T')[0]
+    setEndDate(today)
+    if (preset === '7days') {
+      const past = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
+      setStartDate(past.toISOString().split('T')[0])
+    } else if (preset === 'month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+      setStartDate(firstDay.toISOString().split('T')[0])
+    }
+  }
+
+  // Filter Sales Directory by Date Range & Search Query
+  const filteredByDateSales = sales.filter((s) => {
+    const cleanSaleDate = (s.date || '').split('T')[0]
+    if (dateFilterMode === 'TODAY') {
+      return cleanSaleDate === todayStr
+    }
+    if (dateFilterMode === 'RANGE') {
+      if (startDate && endDate) {
+        return cleanSaleDate >= startDate && cleanSaleDate <= endDate
+      } else if (startDate) {
+        return cleanSaleDate >= startDate
+      } else if (endDate) {
+        return cleanSaleDate <= endDate
+      }
+      return true
+    }
+    return true // 'ALL'
+  })
+
+  const filteredSales = filteredByDateSales.filter(
     (s) =>
       s.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.customerName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -561,7 +616,8 @@ export default function DailySalePage() {
     ? filteredSales.filter((s) => selectedIds.includes(s.id))
     : filteredSales
 
-  const totalSalesRevenue = sales.reduce((acc, curr) => acc + (curr.grandTotal || 0), 0)
+  const activeSalesRevenue = filteredByDateSales.reduce((acc, curr) => acc + (curr.grandTotal || 0), 0)
+  const todaySalesCount = sales.filter((s) => (s.date || '').split('T')[0] === todayStr).length
 
   return (
     <div className="space-y-6">
@@ -592,11 +648,21 @@ export default function DailySalePage() {
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Sales Recorded</span>
+          <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">
+            {dateFilterMode === 'TODAY'
+              ? "Today's Sales Revenue"
+              : dateFilterMode === 'RANGE'
+              ? startDate === endDate
+                ? `Sales Revenue (${formatDateLabel(startDate)})`
+                : `Sales Revenue (${formatDateLabel(startDate)} to ${formatDateLabel(endDate)})`
+              : 'All-Time Sales Revenue'}
+          </span>
           <div className="text-2xl font-extrabold text-slate-900 font-mono">
-            ₹ {totalSalesRevenue.toLocaleString()}
+            ₹ {activeSalesRevenue.toLocaleString()}
           </div>
-          <div className="text-[11px] text-emerald-600 font-semibold">{sales.length} sales bills logged</div>
+          <div className="text-[11px] text-emerald-600 font-semibold">
+            {filteredByDateSales.length} sales bills logged
+          </div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-xs space-y-1">
@@ -614,20 +680,152 @@ export default function DailySalePage() {
 
       {/* Daily Sales Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="font-bold text-slate-900 text-sm whitespace-nowrap">Daily Sales Register ({sales.length})</div>
-            {selectedIds.length > 0 && (
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {selectedIds.length} Selected
-              </span>
-            )}
+        {/* Toolbar Header & Date Filter Selector */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col gap-3">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="font-bold text-slate-900 text-sm whitespace-nowrap">
+                Daily Sales Register ({filteredSales.length})
+              </div>
+              {selectedIds.length > 0 && (
+                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                  {selectedIds.length} Selected
+                </span>
+              )}
+            </div>
+
+            {/* Filter Pills & Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center p-1 bg-slate-200/70 rounded-xl border border-slate-300 gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilterMode('TODAY')
+                    setStartDate(todayStr)
+                    setEndDate(todayStr)
+                    setSelectedIds([])
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                    dateFilterMode === 'TODAY'
+                      ? 'bg-amber-700 text-white shadow-xs font-extrabold'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/60'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Today</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      dateFilterMode === 'TODAY' ? 'bg-amber-900 text-amber-100' : 'bg-slate-300 text-slate-700'
+                    }`}
+                  >
+                    {todaySalesCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilterMode('RANGE')
+                    setSelectedIds([])
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                    dateFilterMode === 'RANGE'
+                      ? 'bg-amber-700 text-white shadow-xs font-extrabold'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/60'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Date Range</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilterMode('ALL')
+                    setSelectedIds([])
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                    dateFilterMode === 'ALL'
+                      ? 'bg-amber-700 text-white shadow-xs font-extrabold'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/60'
+                  }`}
+                >
+                  <span>All Sales</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      dateFilterMode === 'ALL' ? 'bg-amber-900 text-amber-100' : 'bg-slate-300 text-slate-700'
+                    }`}
+                  >
+                    {sales.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Date Inputs for Range Selection */}
+              {dateFilterMode === 'RANGE' && (
+                <div className="flex flex-wrap items-center gap-2 bg-amber-50/80 border border-amber-300 p-1.5 rounded-xl text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-amber-900 pl-1">From:</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="px-2 py-1 border border-amber-400 bg-white font-mono font-bold rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-amber-900">To:</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="px-2 py-1 border border-amber-400 bg-white font-mono font-bold rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 border-l border-amber-300 pl-2">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickPreset('7days')}
+                      className="px-2 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 rounded-md transition-colors"
+                    >
+                      Last 7 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickPreset('month')}
+                      className="px-2 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 rounded-md transition-colors"
+                    >
+                      This Month
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 w-full lg:w-auto">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by bill number or customer..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900 font-medium"
+              />
+            </div>
+
             <ExportActionBar
-              title="Daily Sales Register"
-              filename="hetal_trading_daily_sales"
+              title={`Daily Sales Register - ${
+                dateFilterMode === 'TODAY'
+                  ? `Today (${formatDateLabel(todayStr)})`
+                  : dateFilterMode === 'RANGE'
+                  ? `${formatDateLabel(startDate)} to ${formatDateLabel(endDate)}`
+                  : 'All Entries'
+              }`}
+              filename={`hetal_daily_sales_${
+                dateFilterMode === 'TODAY' ? 'today' : dateFilterMode === 'RANGE' ? `${startDate}_to_${endDate}` : 'all'
+              }`}
               data={exportSales}
               selectedCount={selectedIds.length}
               excelHeaders={[
@@ -641,38 +839,48 @@ export default function DailySalePage() {
               pdfHeaders={['Bill #', 'Date', 'Customer Name', 'Subtotal (₹)', 'Extra (₹)', 'Grand Total (₹)']}
               pdfRows={exportSales.map((s) => [
                 s.billNumber,
-                s.date,
+                formatDateLabel(s.date),
                 s.customerName,
                 `₹${(s.subtotal || 0).toLocaleString()}`,
                 `₹${(s.extraCharges || 0).toLocaleString()}`,
                 `₹${(s.grandTotal || 0).toLocaleString()}`,
               ])}
             />
-
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search by bill number or customer..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900 font-medium"
-              />
-            </div>
           </div>
         </div>
 
         {filteredSales.length === 0 ? (
           <div className="p-12 text-center space-y-3">
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
-              <TrendingUp className="w-6 h-6" />
+              <TrendingUp className="w-6 h-6 text-amber-700" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-slate-800">No Sales Records Found</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Click <strong>"Add Daily Sales Entry"</strong> above to record product sales bills.
+              <h3 className="text-sm font-extrabold text-slate-800">
+                {dateFilterMode === 'TODAY'
+                  ? "No Sales Entries Recorded for Today"
+                  : dateFilterMode === 'RANGE'
+                  ? `No Sales Entries Found from ${formatDateLabel(startDate)} to ${formatDateLabel(endDate)}`
+                  : 'No Sales Records Found'}
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                {dateFilterMode === 'TODAY' ? (
+                  <>
+                    Click <strong>"Add Daily Sales Entry"</strong> above to record today's sales, or click <strong>"All Sales"</strong> or <strong>"Date Range"</strong> to inspect previous entries.
+                  </>
+                ) : (
+                  <>Try adjusting your date range or search keyword, or log a new sales entry.</>
+                )}
               </p>
             </div>
+            {dateFilterMode !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => setDateFilterMode('ALL')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-3 py-1.5 rounded-xl transition-colors mt-2"
+              >
+                <span>Show All Time Sales Entries ({sales.length})</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -715,7 +923,9 @@ export default function DailySalePage() {
                     <td className="py-3.5 px-4 font-mono font-bold text-amber-900 bg-amber-50/40 rounded-lg">
                       {sale.billNumber}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 font-mono">{sale.date}</td>
+                    <td className="py-3.5 px-4 text-slate-700 font-mono font-semibold">
+                      {formatDateLabel(sale.date)}
+                    </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900">{sale.customerName}</td>
                     <td className="py-3.5 px-4 font-semibold text-slate-700">
                       <span className="bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
@@ -735,31 +945,30 @@ export default function DailySalePage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          const msg = `*Hetal Trading Company - Sales Bill*\n📄 Bill #: ${sale.billNumber}\n📅 Date: ${sale.date}\n👤 Customer: ${sale.customerName}\n💰 Grand Total: ₹${(sale.grandTotal || 0).toLocaleString()}`
+                          const msg = `*Hetal Trading Company - Sales Bill*\n📄 Bill #: ${sale.billNumber}\n📅 Date: ${formatDateLabel(sale.date)}\n👤 Customer: ${sale.customerName}\n💰 Grand Total: ₹${(sale.grandTotal || 0).toLocaleString()}`
                           shareOnWhatsApp(msg)
                         }}
-                        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors inline-block"
-                        title="Share Invoice on WhatsApp"
+                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        title="Share Bill on WhatsApp"
                       >
-                        <Share2 className="w-3.5 h-3.5 text-emerald-700" />
+                        <Share2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           setSelectedSaleDetail(sale)
                         }}
-                        className="btn-gold text-[11px] py-1 px-3 font-bold inline-flex items-center gap-1 shadow-xs"
+                        className="btn-gold text-[11px] py-1 px-3 shadow-2xs font-bold"
                       >
-                        <Receipt className="w-3.5 h-3.5" />
-                        <span>View Details</span>
+                        View Details
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           setDeletingSaleId(sale.id)
                         }}
-                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors inline-block"
-                        title="Delete Sale Record"
+                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
+                        title="Delete Sales Record"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { FileText, Plus, Search, Eye, Mail, Building2, CheckCircle2, Clock, X, Loader2, Pencil, Trash2, Share2 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
+import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
 import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface QuoteRecord {
@@ -20,6 +21,13 @@ export default function QuotationsPage() {
   const [quotes, setQuotes] = useState<QuoteRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  // Date Filter States
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('ALL')
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false)
@@ -194,11 +202,34 @@ export default function QuotationsPage() {
     }
   }
 
+  const dateFilteredQuotes = filterRecordsByDate(
+    quotes,
+    (q) => q.date,
+    dateFilterMode,
+    startDate,
+    endDate
+  )
+
+  const filteredQuotes = dateFilteredQuotes.filter((q) => {
+    if (!searchTerm) return true
+    const term = searchTerm.toLowerCase()
+    return (
+      q.id.toLowerCase().includes(term) ||
+      q.clientName.toLowerCase().includes(term) ||
+      q.company.toLowerCase().includes(term) ||
+      q.product.toLowerCase().includes(term)
+    )
+  })
+
+  const todayQuotesCount = quotes.filter(
+    (q) => (q.date ? q.date.split('T')[0] : '') === todayStr
+  ).length
+
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(quotes.map((q) => q.id))
+      setSelectedIds(filteredQuotes.map((q) => q.id))
     } else {
       setSelectedIds([])
     }
@@ -212,8 +243,8 @@ export default function QuotationsPage() {
 
   const getExportQuotes = () => {
     return selectedIds.length > 0
-      ? quotes.filter((q) => selectedIds.includes(q.id))
-      : quotes
+      ? filteredQuotes.filter((q) => selectedIds.includes(q.id))
+      : filteredQuotes
   }
 
   const handleExportPDF = () => {
@@ -282,20 +313,44 @@ export default function QuotationsPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({quotes.length})</div>
+            <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({filteredQuotes.length})</div>
             {selectedIds.length > 0 && (
               <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
                 {selectedIds.length} Selected
               </span>
             )}
           </div>
-          <ExportActionBar
-            onExportPDF={handleExportPDF}
-            onExportExcel={handleExportExcel}
-            onPrint={handlePrint}
-            onShareWhatsApp={handleShareWhatsApp}
-            selectedCount={selectedIds.length}
-          />
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            <DateRangeFilter
+              mode={dateFilterMode}
+              startDate={startDate}
+              endDate={endDate}
+              onModeChange={setDateFilterMode}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              todayCount={todayQuotesCount}
+              totalCount={quotes.length}
+            />
+
+            <div className="relative flex-1 sm:w-48">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search RFQ, client..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <ExportActionBar
+              onExportPDF={handleExportPDF}
+              onExportExcel={handleExportExcel}
+              onPrint={handlePrint}
+              onShareWhatsApp={handleShareWhatsApp}
+              selectedCount={selectedIds.length}
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -303,15 +358,15 @@ export default function QuotationsPage() {
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
             <span className="text-xs font-semibold">Loading quotations from database...</span>
           </div>
-        ) : quotes.length === 0 ? (
+        ) : filteredQuotes.length === 0 ? (
           <div className="p-12 text-center space-y-3">
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
               <FileText className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-slate-800">No Quotations Created</h3>
+              <h3 className="text-sm font-extrabold text-slate-800">No Quotations Found</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Click <strong>"Create New Quotation"</strong> above to issue formal RFQ quotes.
+                No quotes match the selected date range or search filter.
               </p>
             </div>
           </div>
@@ -323,7 +378,7 @@ export default function QuotationsPage() {
                   <th className="py-3 px-4 w-10 text-center">
                     <input
                       type="checkbox"
-                      checked={quotes.length > 0 && selectedIds.length === quotes.length}
+                      checked={filteredQuotes.length > 0 && selectedIds.length === filteredQuotes.length}
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
@@ -338,7 +393,7 @@ export default function QuotationsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
-                {quotes.map((q) => (
+                {filteredQuotes.map((q) => (
                   <tr key={q.id} className={`hover:bg-slate-50 ${selectedIds.includes(q.id) ? 'bg-amber-50/40' : ''}`}>
                     <td className="py-3.5 px-4 text-center">
                       <input

@@ -16,6 +16,7 @@ import {
   Share2
 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
+import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
 import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface UnifiedBillRecord {
@@ -37,6 +38,12 @@ export default function BillsPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'ALL' | 'SALES' | 'PURCHASE'>('ALL')
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Date Filter States
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('ALL')
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
 
   // View Detail Modal
   const [viewingBill, setViewingBill] = useState<UnifiedBillRecord | null>(null)
@@ -174,8 +181,10 @@ export default function BillsPage() {
     }
   }
 
-  // Filtered Bills by Tab and Search Term
-  const filteredBills = bills.filter((b) => {
+  // Filtered Bills by Date Range, Tab and Search Term
+  const filteredByDateBills = filterRecordsByDate(bills, (b) => b.date, dateFilterMode, startDate, endDate)
+
+  const filteredBills = filteredByDateBills.filter((b) => {
     const matchesTab =
       activeTab === 'ALL'
         ? true
@@ -367,30 +376,43 @@ export default function BillsPage() {
             </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-            {selectedIds.length > 0 && (
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {selectedIds.length} Selected
-              </span>
-            )}
-            <ExportActionBar
-              onExportPDF={handleExportPDF}
-              onExportExcel={handleExportExcel}
-              onPrint={handlePrint}
-              onShareWhatsApp={handleShareWhatsApp}
-              selectedCount={selectedIds.length}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pt-2 border-t border-slate-200 w-full">
+            <DateRangeFilter
+              mode={dateFilterMode}
+              startDate={startDate}
+              endDate={endDate}
+              onModeChange={setDateFilterMode}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              todayCount={bills.filter((b) => (b.date || '').split('T')[0] === todayStr).length}
+              totalCount={bills.length}
             />
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search bill #, party, or items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-blue-600 text-slate-900 font-medium"
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+              {selectedIds.length > 0 && (
+                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                  {selectedIds.length} Selected
+                </span>
+              )}
+              <ExportActionBar
+                onExportPDF={handleExportPDF}
+                onExportExcel={handleExportExcel}
+                onPrint={handlePrint}
+                onShareWhatsApp={handleShareWhatsApp}
+                selectedCount={selectedIds.length}
               />
+
+              {/* Search Input */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search bill #, party, or items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-blue-600 text-slate-900 font-medium"
+                />
+              </div>
             </div>
           </div>
         </div>

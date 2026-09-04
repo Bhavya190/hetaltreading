@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
 import { 
   LayoutDashboard, 
   Database, 
@@ -38,6 +39,12 @@ export default function AdminInquiriesPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedLead, setSelectedLead] = useState<any | null>(null)
 
+  // Date Filter States
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('ALL')
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
+
   const fetchData = async () => {
     setLoading(true)
     try {
@@ -65,7 +72,23 @@ export default function AdminInquiriesPage() {
   }, [])
 
   // Filtered lists
-  const filteredQuotes = quotes.filter((q) => {
+  const dateFilteredQuotes = filterRecordsByDate(
+    quotes,
+    (q) => (q.createdAt ? new Date(q.createdAt).toISOString().split('T')[0] : q.date || todayStr),
+    dateFilterMode,
+    startDate,
+    endDate
+  )
+
+  const dateFilteredInquiries = filterRecordsByDate(
+    inquiries,
+    (i) => (i.createdAt ? new Date(i.createdAt).toISOString().split('T')[0] : i.date || todayStr),
+    dateFilterMode,
+    startDate,
+    endDate
+  )
+
+  const filteredQuotes = dateFilteredQuotes.filter((q) => {
     const matchesStatus = statusFilter === 'ALL' || (q.status || 'PENDING') === statusFilter
     const matchesSearch =
       !searchQuery ||
@@ -75,6 +98,23 @@ export default function AdminInquiriesPage() {
       q.companyName?.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesStatus && matchesSearch
   })
+
+  const filteredInquiries = dateFilteredInquiries.filter((inq) => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return (
+      inq.name?.toLowerCase().includes(q) ||
+      inq.email?.toLowerCase().includes(q) ||
+      inq.subject?.toLowerCase().includes(q) ||
+      inq.message?.toLowerCase().includes(q)
+    )
+  })
+
+  const allLeads = [...quotes, ...inquiries]
+  const todayLeadCount = allLeads.filter((item) => {
+    const d = item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : item.date
+    return d === todayStr
+  }).length
 
   // Calculation metrics
   const totalLeads = quotes.length + inquiries.length
@@ -190,7 +230,18 @@ export default function AdminInquiriesPage() {
           </div>
 
           {/* Search & Filters */}
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <DateRangeFilter
+              mode={dateFilterMode}
+              startDate={startDate}
+              endDate={endDate}
+              onModeChange={setDateFilterMode}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              todayCount={todayLeadCount}
+              totalCount={allLeads.length}
+            />
+
             <div className="relative flex-1 md:w-64">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -298,13 +349,13 @@ export default function AdminInquiriesPage() {
         {/* CRM General Inquiries List */}
         {activeTab === 'inquiries' && (
           <div className="space-y-4">
-            {inquiries.length === 0 ? (
+            {filteredInquiries.length === 0 ? (
               <div className="bg-white p-12 text-center rounded-xl border border-slate-200 text-slate-500 text-xs">
-                No general inquiries found in database.
+                No general inquiries match your date or search filter.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {inquiries.map((inq) => (
+                {filteredInquiries.map((inq) => (
                   <div key={inq.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                       <div className="font-bold text-slate-900 text-base flex items-center gap-2">

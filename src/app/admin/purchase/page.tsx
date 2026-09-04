@@ -21,6 +21,7 @@ import {
   Share2,
 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
+import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
 import { shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface PurchaseRecord {
@@ -102,6 +103,12 @@ export default function PurchasePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedVendorSummaryCodes, setSelectedVendorSummaryCodes] = useState<string[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  // Date Filter States
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('ALL')
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false)
@@ -451,7 +458,19 @@ export default function PurchasePage() {
     }
   }
 
-  const totalPurchasesSum = purchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0)
+  const dateFilteredPurchases = filterRecordsByDate(
+    purchases,
+    (p) => p.date,
+    dateFilterMode,
+    startDate,
+    endDate
+  )
+
+  const todayPurchasesCount = purchases.filter(
+    (p) => (p.date ? p.date.split('T')[0] : '') === todayStr
+  ).length
+
+  const totalPurchasesSum = dateFilteredPurchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0)
 
   // Filtered Vendors for Search Dropdown in Modal
   const filteredVendors = vendors.filter((v) =>
@@ -466,7 +485,7 @@ export default function PurchasePage() {
   const getVendorSummaries = (): VendorSummaryItem[] => {
     const summaryMap: { [key: string]: VendorSummaryItem } = {}
 
-    purchases.forEach((p, idx) => {
+    dateFilteredPurchases.forEach((p, idx) => {
       const vName = p.vendor || 'Unknown Vendor'
       const matchedVendor = vendors.find(
         (v) => v.id === p.vendorId || v.name.toLowerCase() === vName.toLowerCase()
@@ -509,8 +528,8 @@ export default function PurchasePage() {
 
   // Selected Vendor Purchases
   const selectedVendorPurchases = selectedVendorNameView
-    ? purchases.filter((p) => p.vendor.toLowerCase() === selectedVendorNameView.toLowerCase())
-    : purchases
+    ? dateFilteredPurchases.filter((p) => p.vendor.toLowerCase() === selectedVendorNameView.toLowerCase())
+    : dateFilteredPurchases
 
   // Filtering for Selected Vendor Purchases Table
   const filteredSelectedVendorPurchases = selectedVendorPurchases.filter((p) =>
@@ -649,6 +668,17 @@ export default function PurchasePage() {
           )}
 
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            <DateRangeFilter
+              mode={dateFilterMode}
+              startDate={startDate}
+              endDate={endDate}
+              onModeChange={setDateFilterMode}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              todayCount={todayPurchasesCount}
+              totalCount={purchases.length}
+            />
+
             <div className="relative flex-1 sm:w-56">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input

@@ -23,6 +23,7 @@ import {
   Share2,
 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
+import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
 import { exportToExcel, printReport, exportToPDF, shareOnWhatsApp } from '@/lib/exportUtils'
 
 export interface DebtTransactionRecord {
@@ -54,6 +55,12 @@ export default function DebtPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Date Filter States
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('ALL')
+  const [startDate, setStartDate] = useState(todayStr)
+  const [endDate, setEndDate] = useState(todayStr)
 
   // Modals
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
@@ -276,11 +283,43 @@ export default function DebtPage() {
     }
   }
 
+  const allTransactions = deptAccounts.flatMap((a) => a.transactions || [])
+  const todayTxnCount = allTransactions.filter(
+    (t) => (t.date ? t.date.split('T')[0] : '') === todayStr
+  ).length
+
+  const filteredAccounts = deptAccounts
+    .map((acc) => {
+      const txns = acc.transactions || []
+      const dateFilteredTxns = filterRecordsByDate(
+        txns,
+        (t) => t.date,
+        dateFilterMode,
+        startDate,
+        endDate
+      )
+      return {
+        ...acc,
+        filteredTransactions: dateFilteredTxns,
+      }
+    })
+    .filter((acc) => {
+      const matchesSearch =
+        acc.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.mobileNumber.includes(searchTerm) ||
+        acc.billingAddress.toLowerCase().includes(searchTerm.toLowerCase())
+
+      if (!matchesSearch) return false
+
+      if (dateFilterMode === 'ALL') return true
+      return acc.filteredTransactions.length > 0
+    })
+
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(deptAccounts.map((a) => a.id))
+      setSelectedIds(filteredAccounts.map((a) => a.id))
     } else {
       setSelectedIds([])
     }
@@ -294,8 +333,8 @@ export default function DebtPage() {
 
   const getExportAccounts = () => {
     return selectedIds.length > 0
-      ? deptAccounts.filter((a) => selectedIds.includes(a.id))
-      : deptAccounts
+      ? filteredAccounts.filter((a) => selectedIds.includes(a.id))
+      : filteredAccounts
   }
 
   const handleExportPDF = () => {
@@ -376,20 +415,44 @@ export default function DebtPage() {
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="font-bold text-slate-900 text-sm">Debtors Ledger ({deptAccounts.length})</div>
+            <div className="font-bold text-slate-900 text-sm">Debtors Ledger ({filteredAccounts.length})</div>
             {selectedIds.length > 0 && (
               <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
                 {selectedIds.length} Selected
               </span>
             )}
           </div>
-          <ExportActionBar
-            onExportPDF={handleExportPDF}
-            onExportExcel={handleExportExcel}
-            onPrint={handlePrint}
-            onShareWhatsApp={handleShareWhatsApp}
-            selectedCount={selectedIds.length}
-          />
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            <DateRangeFilter
+              mode={dateFilterMode}
+              startDate={startDate}
+              endDate={endDate}
+              onModeChange={setDateFilterMode}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              todayCount={todayTxnCount}
+              totalCount={allTransactions.length}
+            />
+
+            <div className="relative flex-1 sm:w-48">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search customer..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <ExportActionBar
+              onExportPDF={handleExportPDF}
+              onExportExcel={handleExportExcel}
+              onPrint={handlePrint}
+              onShareWhatsApp={handleShareWhatsApp}
+              selectedCount={selectedIds.length}
+            />
+          </div>
         </div>
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -397,7 +460,7 @@ export default function DebtPage() {
               <th className="p-4 w-10 text-center">
                 <input
                   type="checkbox"
-                  checked={deptAccounts.length > 0 && selectedIds.length === deptAccounts.length}
+                  checked={filteredAccounts.length > 0 && selectedIds.length === filteredAccounts.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
                   className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                 />
@@ -409,7 +472,7 @@ export default function DebtPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {deptAccounts.map((acc) => (
+            {filteredAccounts.map((acc) => (
               <tr key={acc.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.includes(acc.id) ? 'bg-amber-50/40' : ''}`}>
                 <td className="p-4 text-center">
                   <input
