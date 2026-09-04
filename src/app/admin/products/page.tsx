@@ -257,7 +257,7 @@ export default function AdminProductsPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-mono font-semibold text-slate-800 whitespace-nowrap">
-                      {prod.inventoryStock ? `${prod.inventoryStock.toLocaleString()} ${prod.unit}` : '-'}
+                      {prod.inventoryStock !== undefined && prod.inventoryStock !== null ? `${prod.inventoryStock.toLocaleString()} ${prod.unit}` : `0 ${prod.unit}`}
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">

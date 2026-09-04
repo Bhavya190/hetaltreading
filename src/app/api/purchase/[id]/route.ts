@@ -10,36 +10,35 @@ export async function PUT(
     const id = decodeURIComponent(rawParams.id)
     const body = await request.json()
 
+    const updateData = {
+      date: body.date ? new Date(body.date) : undefined,
+      vendor: body.vendor,
+      vendorId: body.vendorId || null,
+      item: body.item,
+      productId: body.productId || null,
+      quantity: parseFloat(body.quantity) || 1,
+      discount: parseFloat(body.discount) || 0,
+      totalAmount: parseFloat(body.totalAmount) || 0,
+      extraCharges: parseFloat(body.extraCharges) || 0,
+      extraChargesGst: parseFloat(body.extraChargesGst) || 18,
+      status: body.status || 'DELIVERED',
+    }
+
     let updated
     try {
       updated = await (prisma as any).purchaseOrder.update({
         where: { id },
-        data: {
-          vendor: body.vendor,
-          item: body.item,
-          quantity: parseInt(body.quantity, 10) || 1,
-          totalAmount: parseFloat(body.totalAmount) || 0,
-          status: body.status || 'DELIVERED',
-        },
+        data: updateData,
       })
     } catch (e) {
       updated = await (prisma as any).purchaseOrder.upsert({
         where: { id },
-        update: {
-          vendor: body.vendor,
-          item: body.item,
-          quantity: parseInt(body.quantity, 10) || 1,
-          totalAmount: parseFloat(body.totalAmount) || 0,
-          status: body.status || 'DELIVERED',
-        },
+        update: updateData,
         create: {
           id,
           orderNumber: id,
-          vendor: body.vendor,
-          item: body.item,
-          quantity: parseInt(body.quantity, 10) || 1,
-          totalAmount: parseFloat(body.totalAmount) || 0,
-          status: body.status || 'DELIVERED',
+          ...updateData,
+          date: body.date ? new Date(body.date) : new Date(),
         },
       })
     }
@@ -62,8 +61,39 @@ export async function DELETE(
     const rawParams = await params
     const id = decodeURIComponent(rawParams.id)
 
+    // Fetch existing purchase order to decrement product inventory stock on deletion
+    const existing = await (prisma as any).purchaseOrder.findFirst({
+      where: { OR: [{ id }, { orderNumber: id }] },
+    })
+
+    if (existing) {
+      const lineQty = Math.round(parseFloat(existing.quantity) || 0)
+      let targetProdId = existing.productId
+
+      if (!targetProdId && existing.item) {
+        const cleanName = existing.item.split('(')[0].trim()
+        const matched = await (prisma as any).product.findFirst({
+          where: { name: { equals: cleanName, mode: 'insensitive' } },
+        })
+        if (matched) targetProdId = matched.id
+      }
+
+      if (targetProdId && lineQty > 0) {
+        try {
+          await (prisma as any).product.update({
+            where: { id: targetProdId },
+            data: {
+              inventoryStock: { decrement: lineQty },
+            },
+          })
+        } catch (e) {
+          console.error(`Failed to decrement stock for product ${targetProdId}:`, e)
+        }
+      }
+    }
+
     const result = await (prisma as any).purchaseOrder.deleteMany({
-      where: { id },
+      where: { OR: [{ id }, { orderNumber: id }] },
     })
 
     return NextResponse.json({ success: true, count: result.count, message: 'Purchase order deleted successfully' })

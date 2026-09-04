@@ -1,21 +1,85 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ShoppingBag, Plus, Truck, Calendar, PackageCheck, AlertCircle, CheckCircle2, X, Loader2, Pencil, Trash2 } from 'lucide-react'
+import {
+  ShoppingBag,
+  Plus,
+  Truck,
+  Calendar,
+  PackageCheck,
+  AlertCircle,
+  CheckCircle2,
+  X,
+  Loader2,
+  Pencil,
+  Trash2,
+  Search,
+  ChevronDown,
+  Layers,
+} from 'lucide-react'
 
 export interface PurchaseRecord {
   id: string
   orderNumber?: string
-  vendor: string
-  item: string
-  quantity: number
-  totalAmount: number
   date: string
+  vendor: string
+  vendorId?: string
+  item: string
+  productId?: string
+  quantity: number
+  discount: number
+  totalAmount: number
+  extraCharges: number
+  extraChargesGst: number
   status: 'DELIVERED' | 'IN-TRANSIT' | 'PENDING'
 }
 
+export interface ProductOption {
+  id: string
+  name: string
+  serialNumber?: string
+  purchasePrice: number
+  gstRate: number
+  unit: string
+  inventoryStock: number
+}
+
+export interface VendorOption {
+  id: string
+  name: string
+  vendorCode?: string
+  category?: string
+  phone?: string
+  city?: string
+}
+
+export interface PurchaseItemLine {
+  id: string
+  productId: string
+  productName: string
+  productSearch: string
+  showDropdown: boolean
+  quantity: string
+  discount: string
+  totalAmount: string
+}
+
+const createEmptyItemLine = (): PurchaseItemLine => ({
+  id: String(Date.now() + Math.random()),
+  productId: '',
+  productName: '',
+  productSearch: '',
+  showDropdown: false,
+  quantity: '',
+  discount: '',
+  totalAmount: '',
+})
+
 export default function PurchasePage() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [vendors, setVendors] = useState<VendorOption[]>([])
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -25,58 +89,83 @@ export default function PurchasePage() {
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
 
   // Form State
-  const [vendor, setVendor] = useState('')
-  const [item, setItem] = useState('')
-  const [quantity, setQuantity] = useState('1')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [vendorSearch, setVendorSearch] = useState('')
+  const [selectedVendorId, setSelectedVendorId] = useState('')
+  const [selectedVendorName, setSelectedVendorName] = useState('')
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false)
+
+  // Multi-product Item Lines State
+  const [itemLines, setItemLines] = useState<PurchaseItemLine[]>([createEmptyItemLine()])
+
   const [totalAmount, setTotalAmount] = useState('')
-  const [status, setStatus] = useState<'DELIVERED' | 'IN-TRANSIT' | 'PENDING'>('DELIVERED')
+  const [extraCharges, setExtraCharges] = useState('')
+  const [extraChargesGst, setExtraChargesGst] = useState('18')
 
-  const SAMPLE_PURCHASES: PurchaseRecord[] = [
-    {
-      id: 'PO-2026-101',
-      orderNumber: 'PO-2026-101',
-      vendor: 'Gujarat Chemicals & Minerals Corp',
-      item: 'Raw Soda Ash Boulders',
-      quantity: 50,
-      totalAmount: 450000,
-      date: '2026-09-03',
-      status: 'DELIVERED',
-    },
-    {
-      id: 'PO-2026-102',
-      orderNumber: 'PO-2026-102',
-      vendor: 'Saurashtra Lime & Gypsum Mines',
-      item: 'Refined Calcium Lime',
-      quantity: 100,
-      totalAmount: 180000,
-      date: '2026-09-03',
-      status: 'DELIVERED',
-    },
-  ]
-
-  const fetchPurchases = async () => {
+  // Fetch Purchases, Products, and Vendors
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/purchase')
-      const data = await res.json()
-      if (data.success && Array.isArray(data.data)) {
+
+      // Fetch Purchases
+      const resP = await fetch('/api/purchase')
+      const dataP = await resP.json()
+      if (dataP.success && Array.isArray(dataP.data)) {
         setPurchases(
-          data.data.map((p: any) => ({
+          dataP.data.map((p: any) => ({
             id: p.id,
             orderNumber: p.orderNumber || p.id,
+            date: p.date ? new Date(p.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             vendor: p.vendor,
+            vendorId: p.vendorId || '',
             item: p.item,
+            productId: p.productId || '',
             quantity: p.quantity || 1,
+            discount: p.discount || 0,
             totalAmount: p.totalAmount || 0,
-            date: p.date ? new Date(p.date).toISOString().split('T')[0] : '2026-09-03',
+            extraCharges: p.extraCharges || 0,
+            extraChargesGst: p.extraChargesGst || 18,
             status: p.status || 'DELIVERED',
           }))
         )
       } else {
         setPurchases([])
       }
+
+      // Fetch Products
+      const resProd = await fetch('/api/products')
+      const dataProd = await resProd.json()
+      if (dataProd.success && Array.isArray(dataProd.data)) {
+        setProducts(
+          dataProd.data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            serialNumber: p.serialNumber || '',
+            purchasePrice: p.purchasePrice || 0,
+            gstRate: p.gstRate || 18,
+            unit: p.unit || 'Kg',
+            inventoryStock: p.inventoryStock || 0,
+          }))
+        )
+      }
+
+      // Fetch Vendors
+      const resVend = await fetch('/api/vendors')
+      const dataVend = await resVend.json()
+      if (dataVend.success && Array.isArray(dataVend.data)) {
+        setVendors(
+          dataVend.data.map((v: any) => ({
+            id: v.id,
+            name: v.name,
+            vendorCode: v.vendorCode || '',
+            category: v.category || '',
+            phone: v.phone || '',
+            city: v.city || '',
+          }))
+        )
+      }
     } catch (err) {
-      console.error('Error fetching purchases:', err)
+      console.error('Error fetching purchase data:', err)
       setPurchases([])
     } finally {
       setLoading(false)
@@ -84,42 +173,150 @@ export default function PurchasePage() {
   }
 
   useEffect(() => {
-    fetchPurchases()
+    fetchData()
   }, [])
 
-  const resetForm = () => {
-    setVendor('')
-    setItem('')
-    setQuantity('1')
-    setTotalAmount('')
-    setStatus('DELIVERED')
+  // Currently Selected Vendor Object
+  const selectedVend = vendors.find(
+    (v) => v.id === selectedVendorId || v.name.toLowerCase() === selectedVendorName.toLowerCase()
+  )
+
+  // Item Line Manipulators
+  const addItemLine = () => {
+    setItemLines((prev) => [...prev, createEmptyItemLine()])
   }
 
+  const removeItemLine = (id: string) => {
+    if (itemLines.length <= 1) return
+    setItemLines((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const updateItemLine = (id: string, updates: Partial<PurchaseItemLine>) => {
+    setItemLines((prev) =>
+      prev.map((line) => (line.id === id ? { ...line, ...updates } : line))
+    )
+  }
+
+  // Calculate detailed financials per item line
+  const calculatedLines = itemLines.map((line) => {
+    const matchedProduct = products.find(
+      (p) => p.id === line.productId || p.name.toLowerCase() === line.productName.toLowerCase()
+    )
+    const pricePerUnit = matchedProduct ? matchedProduct.purchasePrice : 0
+    const prodGstRate = matchedProduct ? matchedProduct.gstRate : 18
+
+    const q = parseFloat(line.quantity) || 0
+    const d = parseFloat(line.discount) || 0
+
+    const rawSubtotal = q * pricePerUnit
+    const discAmount = rawSubtotal * (d / 100)
+    const netBase = Math.max(0, rawSubtotal - discAmount)
+    const gstAmt = netBase * (prodGstRate / 100)
+    const lineTotalPaid = Math.round(netBase + gstAmt)
+
+    return {
+      ...line,
+      matchedProduct,
+      pricePerUnit,
+      prodGstRate,
+      q,
+      d,
+      rawSubtotal,
+      discAmount,
+      netBase,
+      gstAmt,
+      lineTotalPaid,
+    }
+  })
+
+  // Aggregated Bill Totals Across All Items
+  const totalItemsQty = calculatedLines.reduce((acc, curr) => acc + curr.q, 0)
+  const totalGrossBase = calculatedLines.reduce((acc, curr) => acc + curr.rawSubtotal, 0)
+  const totalDiscountAmt = calculatedLines.reduce((acc, curr) => acc + curr.discAmount, 0)
+  const totalNetBase = calculatedLines.reduce((acc, curr) => acc + curr.netBase, 0)
+  const totalProductGst = calculatedLines.reduce((acc, curr) => acc + curr.gstAmt, 0)
+  const totalProductPaidIncGst = totalNetBase + totalProductGst
+
+  const extrasBase = parseFloat(extraCharges) || 0
+  const extrasGstRate = parseFloat(extraChargesGst) || 0
+  const extrasGstAmount = extrasBase * (extrasGstRate / 100)
+  const totalExtraIncGst = extrasBase + extrasGstAmount
+
+  const calculatedGrandTotal = Math.round(totalProductPaidIncGst + totalExtraIncGst)
+
+  // Auto-calculate Total Paid whenever item lines or extra charges change
+  useEffect(() => {
+    if (totalItemsQty > 0 || extrasBase > 0) {
+      setTotalAmount(String(calculatedGrandTotal))
+    }
+  }, [itemLines, extraCharges, extraChargesGst, products])
+
+  const resetForm = () => {
+    setDate(new Date().toISOString().split('T')[0])
+    setVendorSearch('')
+    setSelectedVendorId('')
+    setSelectedVendorName('')
+    setShowVendorDropdown(false)
+
+    setItemLines([createEmptyItemLine()])
+    setTotalAmount('')
+    setExtraCharges('')
+    setExtraChargesGst('18')
+  }
+
+  // Handle Save New Purchase
   const handleAddPurchase = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!vendor || !item || !totalAmount) return
+    const finalVendorName = selectedVendorName || vendorSearch
+
+    const validLines = calculatedLines.filter(
+      (l) => l.productName || l.productSearch
+    )
+
+    if (!finalVendorName || validLines.length === 0) {
+      alert('Please select a Vendor and add at least one Product.')
+      return
+    }
+
+    // Build consolidated summary string e.g. "Soda Ash (x50), Refined Lime (x100)"
+    const consolidatedItemName = validLines
+      .map((l) => `${l.productName || l.productSearch} (x${l.q || 1})`)
+      .join(', ')
+
+    const primaryProductId = validLines[0]?.productId || null
 
     setSaving(true)
     try {
+      const payload = {
+        date,
+        vendor: finalVendorName,
+        vendorId: selectedVendorId || null,
+        item: consolidatedItemName,
+        productId: primaryProductId,
+        quantity: totalItemsQty || 1,
+        discount: validLines[0]?.d || 0,
+        totalAmount: parseFloat(totalAmount) || calculatedGrandTotal,
+        extraCharges: parseFloat(extraCharges) || 0,
+        extraChargesGst: parseFloat(extraChargesGst) || 18,
+        status: 'DELIVERED',
+        items: validLines.map((l) => ({
+          productId: l.productId,
+          productName: l.productName || l.productSearch,
+          quantity: l.q,
+        })),
+      }
+
       const res = await fetch('/api/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendor,
-          item,
-          quantity: parseInt(quantity, 10) || 1,
-          totalAmount: parseFloat(totalAmount) || 0,
-          status,
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (data.success && data.data) {
-        fetchPurchases()
-      } else {
-        fetchPurchases()
+      if (data.success) {
+        fetchData()
       }
     } catch (err) {
-      console.error('Error creating purchase:', err)
+      console.error('Error creating purchase order:', err)
     } finally {
       setSaving(false)
       setShowAddModal(false)
@@ -127,37 +324,89 @@ export default function PurchasePage() {
     }
   }
 
+  // Open Edit Modal
   const openEditModal = (p: PurchaseRecord) => {
     setEditingPurchase(p)
-    setVendor(p.vendor || '')
-    setItem(p.item || '')
-    setQuantity(p.quantity ? String(p.quantity) : '1')
+    setDate(p.date || new Date().toISOString().split('T')[0])
+    setSelectedVendorId(p.vendorId || '')
+    setSelectedVendorName(p.vendor || '')
+    setVendorSearch(p.vendor || '')
+
+    // Parse items if comma separated or single item
+    if (p.item) {
+      const rawParts = p.item.split(',').map((s) => s.trim())
+      const loadedLines: PurchaseItemLine[] = rawParts.map((part) => {
+        // extract name and qty e.g. "Product (x50)"
+        const match = part.match(/^(.*?)(?:\s*\(x(\d+)\))?$/)
+        const pName = match ? match[1].trim() : part
+        const pQty = match && match[2] ? match[2] : String(p.quantity || 1)
+
+        const matchedProd = products.find((prod) => prod.name.toLowerCase() === pName.toLowerCase())
+
+        return {
+          id: String(Date.now() + Math.random()),
+          productId: matchedProd ? matchedProd.id : '',
+          productName: pName,
+          productSearch: pName,
+          showDropdown: false,
+          quantity: pQty,
+          discount: p.discount ? String(p.discount) : '',
+          totalAmount: '',
+        }
+      })
+      setItemLines(loadedLines.length > 0 ? loadedLines : [createEmptyItemLine()])
+    } else {
+      setItemLines([createEmptyItemLine()])
+    }
+
     setTotalAmount(p.totalAmount ? String(p.totalAmount) : '')
-    setStatus(p.status || 'DELIVERED')
+    setExtraCharges(p.extraCharges ? String(p.extraCharges) : '')
+    setExtraChargesGst(p.extraChargesGst ? String(p.extraChargesGst) : '18')
   }
 
+  // Handle Update Purchase
   const handleUpdatePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingPurchase) return
 
+    const finalVendorName = selectedVendorName || vendorSearch
+    const validLines = calculatedLines.filter(
+      (l) => l.productName || l.productSearch
+    )
+
+    if (!finalVendorName || validLines.length === 0) {
+      alert('Please select a Vendor and add at least one Product.')
+      return
+    }
+
+    const consolidatedItemName = validLines
+      .map((l) => `${l.productName || l.productSearch} (x${l.q || 1})`)
+      .join(', ')
+
     setSaving(true)
     try {
+      const payload = {
+        date,
+        vendor: finalVendorName,
+        vendorId: selectedVendorId || null,
+        item: consolidatedItemName,
+        productId: validLines[0]?.productId || null,
+        quantity: totalItemsQty || 1,
+        discount: validLines[0]?.d || 0,
+        totalAmount: parseFloat(totalAmount) || calculatedGrandTotal,
+        extraCharges: parseFloat(extraCharges) || 0,
+        extraChargesGst: parseFloat(extraChargesGst) || 18,
+        status: editingPurchase.status || 'DELIVERED',
+      }
+
       const res = await fetch(`/api/purchase/${editingPurchase.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendor,
-          item,
-          quantity: parseInt(quantity, 10) || 1,
-          totalAmount: parseFloat(totalAmount) || 0,
-          status,
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (data.success && data.data) {
-        setPurchases(purchases.map((p) => (p.id === editingPurchase.id ? data.data : p)))
-      } else {
-        fetchPurchases()
+      if (data.success) {
+        fetchData()
       }
     } catch (err) {
       console.error('Error updating purchase order:', err)
@@ -168,6 +417,7 @@ export default function PurchasePage() {
     }
   }
 
+  // Handle Delete Purchase
   const handleDeletePurchase = async (id: string) => {
     setSaving(true)
     try {
@@ -175,8 +425,6 @@ export default function PurchasePage() {
       const data = await res.json()
       if (data.success) {
         setPurchases(purchases.filter((p) => p.id !== id))
-      } else {
-        fetchPurchases()
       }
     } catch (err) {
       console.error('Error deleting purchase order:', err)
@@ -187,8 +435,16 @@ export default function PurchasePage() {
   }
 
   const totalPurchasesSum = purchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0)
-  const inTransitCount = purchases.filter((p) => p.status === 'IN-TRANSIT').length
-  const deliveredCount = purchases.filter((p) => p.status === 'DELIVERED').length
+
+  // Filtered Vendors for Search Dropdown
+  const filteredVendors = vendors.filter((v) =>
+    v.name.toLowerCase().includes(vendorSearch.toLowerCase())
+  )
+
+  // Determine if Summary Box should display
+  const hasSelectedProducts = calculatedLines.some(
+    (l) => l.productName || l.productSearch || l.q > 0
+  )
 
   return (
     <div className="space-y-6">
@@ -201,12 +457,18 @@ export default function PurchasePage() {
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900">Purchase Orders & Procurement</h1>
           <p className="text-xs text-slate-500">
-            Manage supplier purchase orders, raw material consignments, and inward inventory logs.
+            Record supplier purchases, select multiple products & vendors, calculate GST and extra charges.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddModal(true)} className="btn-gold text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2">
+          <button
+            onClick={() => {
+              resetForm()
+              setShowAddModal(true)
+            }}
+            className="btn-gold text-xs py-2.5 px-4 shadow-sm font-bold flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             <span>Create Purchase Order</span>
           </button>
@@ -217,102 +479,108 @@ export default function PurchasePage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <span className="text-slate-500 text-xs font-bold">Total Purchases Value</span>
-          <div className="text-2xl font-extrabold text-slate-900 font-mono">₹ {totalPurchasesSum.toLocaleString()}</div>
-          <div className="text-[11px] text-slate-500">{purchases.length} consignments logged</div>
+          <div className="text-2xl font-extrabold text-slate-900 font-mono">
+            ₹ {totalPurchasesSum.toLocaleString()}
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">Logged procurement total</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-slate-500 text-xs font-bold">In-Transit Freight</span>
-          <div className="text-2xl font-extrabold text-amber-800 font-mono">{inTransitCount} Shipments</div>
-          <div className="text-[11px] text-amber-700 font-semibold">Active freight</div>
+          <span className="text-slate-500 text-xs font-bold">Total Purchase Orders</span>
+          <div className="text-2xl font-extrabold text-slate-900 font-mono">{purchases.length} Orders</div>
+          <span className="text-[11px] text-emerald-600 font-medium">All logged invoices</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-slate-500 text-xs font-bold">Inventory Received</span>
-          <div className="text-2xl font-extrabold text-emerald-700 font-mono">{deliveredCount} Completed</div>
-          <div className="text-[11px] text-emerald-600 font-semibold">Inspected & cleared</div>
+          <span className="text-slate-500 text-xs font-bold">Registered Vendors</span>
+          <div className="text-2xl font-extrabold text-amber-800 font-mono">{vendors.length} Suppliers</div>
+          <span className="text-[11px] text-amber-700 font-medium">Available for procurement</span>
         </div>
       </div>
 
-      {/* Purchase Orders Table */}
+      {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-          <div className="font-bold text-slate-900 text-sm">Purchase Order Register ({purchases.length})</div>
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <h2 className="font-extrabold text-slate-900 text-sm sm:text-base">
+            Purchase Orders Register ({purchases.length})
+          </h2>
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-            <span className="text-xs font-semibold">Loading purchase orders from database...</span>
+          <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+            <span className="text-sm font-semibold">Loading purchase orders from database...</span>
           </div>
         ) : purchases.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
-              <ShoppingBag className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-slate-800">No Purchase Orders Found</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Click <strong>"Create Purchase Order"</strong> above to log material procurement orders.
-              </p>
-            </div>
+          <div className="p-12 text-center text-slate-500 space-y-3">
+            <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="font-semibold text-sm text-slate-700">No Purchase Orders Recorded Yet</p>
+            <p className="text-xs text-slate-500">Click "Create Purchase Order" above to log a new purchase entry.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-100/80 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-4">PO Number</th>
-                  <th className="py-3 px-4">Vendor</th>
-                  <th className="py-3 px-4">Item & Quantity</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Total Amount</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr className="bg-slate-900 text-white text-[11px] uppercase tracking-wider font-extrabold">
+                  <th className="py-3 px-3 lg:px-4">Date</th>
+                  <th className="py-3 px-3 lg:px-4">Order #</th>
+                  <th className="py-3 px-3 lg:px-4">Vendor</th>
+                  <th className="py-3 px-3 lg:px-4">Product(s) / Items Purchased</th>
+                  <th className="py-3 px-3 lg:px-4 text-center">Total Qty</th>
+                  <th className="py-3 px-3 lg:px-4 text-center">Discount</th>
+                  <th className="py-3 px-3 lg:px-4 text-right">Extra Charges</th>
+                  <th className="py-3 px-3 lg:px-4 text-center">Extra GST</th>
+                  <th className="py-3 px-3 lg:px-4 text-right">Total Paid (₹)</th>
+                  <th className="py-3 px-3 lg:px-4 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
+              <tbody className="divide-y divide-slate-200 text-xs font-medium text-slate-800">
                 {purchases.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="py-3.5 px-4 font-mono font-bold text-amber-900 bg-amber-50/50 rounded-lg">
-                      {p.orderNumber || p.id}
+                  <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono text-slate-600">
+                      {p.date}
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{p.vendor}</td>
-                    <td className="py-3.5 px-4 text-slate-800 font-medium">
-                      {p.item} ({p.quantity} units)
+                    <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono font-extrabold text-amber-700">
+                      {p.orderNumber}
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">{p.date}</td>
-                    <td className="py-3.5 px-4 font-mono font-extrabold text-slate-900">
-                      ₹ {p.totalAmount ? p.totalAmount.toLocaleString() : 0}
+                    <td className="py-2.5 px-3 lg:px-4 font-bold text-slate-900 truncate max-w-[140px] xl:max-w-[180px]">
+                      {p.vendor}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                          p.status === 'DELIVERED'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : p.status === 'IN-TRANSIT'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {p.status}
-                      </span>
+                    <td className="py-2.5 px-3 lg:px-4 font-semibold text-slate-800 truncate max-w-[220px] xl:max-w-[300px]">
+                      {p.item}
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-1">
-                      <button
-                        onClick={() => openEditModal(p)}
-                        className="p-1.5 text-slate-600 hover:text-amber-600 rounded-lg hover:bg-slate-100 transition-colors"
-                        title="Edit Purchase Order"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeletingPurchaseId(p.id)}
-                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors"
-                        title="Delete Purchase Order"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <td className="py-2.5 px-3 lg:px-4 text-center font-mono font-bold">
+                      {p.quantity}
+                    </td>
+                    <td className="py-2.5 px-3 lg:px-4 text-center font-mono">
+                      {p.discount ? `${p.discount}%` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 lg:px-4 text-right font-mono text-slate-700 whitespace-nowrap">
+                      {p.extraCharges ? `₹${p.extraCharges}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 lg:px-4 text-center font-mono text-amber-800 font-semibold">
+                      {p.extraCharges ? `${p.extraChargesGst}%` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 lg:px-4 text-right font-mono font-extrabold text-slate-900 text-sm whitespace-nowrap">
+                      ₹ {p.totalAmount.toLocaleString()}
+                    </td>
+                    <td className="py-2.5 px-3 lg:px-4 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => openEditModal(p)}
+                          className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                          title="Edit Purchase Order"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingPurchaseId(p.id)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors"
+                          title="Delete Purchase Order"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -322,92 +590,418 @@ export default function PurchasePage() {
         )}
       </div>
 
-      {/* Add / Edit PO Modal */}
+      {/* CREATE / EDIT MULTI-PRODUCT PURCHASE MODAL */}
       {(showAddModal || editingPurchase) && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900">
-                {editingPurchase ? 'Edit Purchase Order' : 'Create New Purchase Order'}
-              </h3>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  {editingPurchase ? 'Edit Purchase Order' : 'Create Purchase Order'}
+                </h3>
+                <p className="text-xs text-slate-500">Fill in purchase details, vendor, multiple products and extra charges.</p>
+              </div>
               <button
                 onClick={() => {
                   setShowAddModal(false)
                   setEditingPurchase(null)
                   resetForm()
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={editingPurchase ? handleUpdatePurchase : handleAddPurchase} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Vendor / Supplier Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Gujarat Chemicals Corp"
-                  value={vendor}
-                  onChange={(e) => setVendor(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Material / Item Specification *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Soda Ash Light Grade (25 MT)"
-                  value={item}
-                  onChange={(e) => setItem(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={editingPurchase ? handleUpdatePurchase : handleAddPurchase} className="space-y-5">
+              {/* Top Row: Date & Vendor Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Date */}
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Quantity *</label>
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                    PURCHASE DATE
+                  </label>
                   <input
-                    type="number"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs text-slate-800"
                     required
-                    min="1"
-                    placeholder="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
                   />
                 </div>
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Total Amount (₹) *</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 450000"
-                    value={totalAmount}
-                    onChange={(e) => setTotalAmount(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
-                  />
+                {/* SELECT VENDOR Searchable Input */}
+                <div className="relative">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                    SELECT VENDOR
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search vendor name..."
+                      value={selectedVendorName ? selectedVendorName : vendorSearch}
+                      onChange={(e) => {
+                        setVendorSearch(e.target.value)
+                        setSelectedVendorName('')
+                        setSelectedVendorId('')
+                        setShowVendorDropdown(true)
+                      }}
+                      onFocus={() => setShowVendorDropdown(true)}
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white pr-9 shadow-2xs placeholder:text-slate-400 text-slate-800 font-semibold"
+                      required
+                    />
+                    <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                  </div>
+
+                  {showVendorDropdown && (
+                    <div className="absolute z-40 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl divide-y divide-slate-100">
+                      {filteredVendors.length === 0 ? (
+                        <div className="p-3 text-xs text-slate-500 text-center font-medium">
+                          No matching vendors found.
+                        </div>
+                      ) : (
+                        filteredVendors.map((v) => (
+                          <div
+                            key={v.id}
+                            onClick={() => {
+                              setSelectedVendorId(v.id)
+                              setSelectedVendorName(v.name)
+                              setVendorSearch(v.name)
+                              setShowVendorDropdown(false)
+                            }}
+                            className="p-3 hover:bg-amber-50 cursor-pointer transition-colors text-xs flex items-center justify-between"
+                          >
+                            <span className="font-extrabold text-slate-900">{v.name}</span>
+                            {v.category && <span className="text-[11px] text-slate-500">{v.category}</span>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Freight Status *</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 bg-white"
+              {/* SELECTED VENDOR DETAILS CARD */}
+              {selectedVend && (
+                <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs space-y-1 font-medium">
+                  <div className="flex justify-between border-b border-slate-200/60 pb-1">
+                    <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">SELECTED VENDOR:</span>
+                    <span className="font-extrabold text-slate-900">{selectedVend.name}</span>
+                  </div>
+                  {selectedVend.phone && (
+                    <div className="flex justify-between">
+                      <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">MOBILE NUMBER:</span>
+                      <span className="font-mono font-bold text-slate-800">{selectedVend.phone}</span>
+                    </div>
+                  )}
+                  {selectedVend.city && (
+                    <div className="flex justify-between">
+                      <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">ADDRESS / CITY:</span>
+                      <span className="font-semibold text-slate-800">{selectedVend.city}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PRODUCTS TO PURCHASE SECTION */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-700" />
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      Products to Purchase ({itemLines.length})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addItemLine}
+                    className="btn-gold text-xs py-1.5 px-3 rounded-xl shadow-2xs font-extrabold flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Product</span>
+                  </button>
+                </div>
+
+                {/* ITEM LINES LIST */}
+                <div className="space-y-4">
+                  {calculatedLines.map((line, index) => {
+                    const filteredProds = products.filter(
+                      (p) =>
+                        p.name.toLowerCase().includes(line.productSearch.toLowerCase()) ||
+                        (p.serialNumber &&
+                          p.serialNumber.toLowerCase().includes(line.productSearch.toLowerCase()))
+                    )
+
+                    return (
+                      <div
+                        key={line.id}
+                        className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3 relative transition-all"
+                      >
+                        {/* Line Header */}
+                        <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200">
+                            PRODUCT ITEM #{index + 1}
+                          </span>
+                          {itemLines.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeItemLine(line.id)}
+                              className="p-1 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                              title="Remove Product Item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* SELECT PRODUCT Searchable Input */}
+                        <div className="relative">
+                          <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                            SELECT PRODUCT
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search product name or serial number..."
+                              value={
+                                line.productName
+                                  ? line.matchedProduct?.serialNumber
+                                    ? `${line.productName} (#${line.matchedProduct.serialNumber})`
+                                    : line.productName
+                                  : line.productSearch
+                              }
+                              onChange={(e) => {
+                                updateItemLine(line.id, {
+                                  productSearch: e.target.value,
+                                  productName: '',
+                                  productId: '',
+                                  showDropdown: true,
+                                })
+                              }}
+                              onFocus={() => updateItemLine(line.id, { showDropdown: true })}
+                              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white pr-9 shadow-2xs text-slate-800 font-semibold"
+                              required
+                            />
+                            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                          </div>
+
+                          {line.showDropdown && (
+                            <div className="absolute z-30 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl divide-y divide-slate-100">
+                              {filteredProds.length === 0 ? (
+                                <div className="p-3 text-xs text-slate-500 text-center font-medium">
+                                  No matching products found.
+                                </div>
+                              ) : (
+                                filteredProds.map((p) => (
+                                  <div
+                                    key={p.id}
+                                    onClick={() => {
+                                      updateItemLine(line.id, {
+                                        productId: p.id,
+                                        productName: p.name,
+                                        productSearch: p.name,
+                                        showDropdown: false,
+                                      })
+                                    }}
+                                    className="p-3 hover:bg-amber-50 cursor-pointer transition-colors flex items-center justify-between text-xs"
+                                  >
+                                    <div>
+                                      <div className="font-extrabold text-slate-900">{p.name}</div>
+                                      {p.serialNumber && (
+                                        <div className="text-[11px] text-slate-500 font-mono">#{p.serialNumber}</div>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="font-mono font-bold text-amber-800">
+                                        ₹{p.purchasePrice}/{p.unit}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">GST: {p.gstRate}%</div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Selected Product Specs Card */}
+                        {line.matchedProduct && (
+                          <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1 font-medium">
+                            <div className="flex justify-between border-b border-slate-100 pb-1">
+                              <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">SKU / SERIAL:</span>
+                              <span className="font-mono font-bold text-slate-900">#{line.matchedProduct.serialNumber || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">BASE PRICE (EXCL. GST):</span>
+                              <span className="font-mono font-bold text-slate-900">₹{line.matchedProduct.purchasePrice.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">PRODUCT GST RATE:</span>
+                              <span className="font-mono font-extrabold text-emerald-600">{line.matchedProduct.gstRate}% GST</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3-Column Inputs: PURCHASE QTY, DISCOUNT (%), TOTAL PAID (₹) */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
+                              PURCHASE QTY
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="e.g. 50"
+                              value={line.quantity}
+                              onChange={(e) => updateItemLine(line.id, { quantity: e.target.value })}
+                              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs font-mono text-slate-900"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 mb-1">
+                              DISCOUNT (%)
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="e.g. 10"
+                              value={line.discount}
+                              onChange={(e) => updateItemLine(line.id, { discount: e.target.value })}
+                              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs font-mono text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
+                              LINE TOTAL (₹)
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="e.g. 2275"
+                              value={line.lineTotalPaid ? String(line.lineTotalPaid) : ''}
+                              readOnly
+                              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-bold bg-slate-50 font-mono text-slate-900 cursor-not-allowed"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Add Product Line Button */}
+                <button
+                  type="button"
+                  onClick={addItemLine}
+                  className="w-full py-2.5 rounded-2xl border-2 border-dashed border-amber-300/80 hover:border-amber-400 text-amber-800 bg-amber-50/50 hover:bg-amber-50 font-extrabold text-xs transition-colors flex items-center justify-center gap-2"
                 >
-                  <option value="DELIVERED">DELIVERED</option>
-                  <option value="IN-TRANSIT">IN-TRANSIT</option>
-                  <option value="PENDING">PENDING</option>
-                </select>
+                  <Plus className="w-4 h-4 text-amber-700" />
+                  <span>+ Add Another Product</span>
+                </button>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+              {/* 2-Column Row: EXTRA CHARGES (₹), EXTRA CHARGES GST */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-amber-800 mb-1">
+                    EXTRA CHARGES (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 200"
+                    value={extraCharges}
+                    onChange={(e) => setExtraCharges(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs font-mono placeholder:text-slate-400 text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-amber-800 mb-1">
+                    EXTRA CHARGES GST
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={extraChargesGst}
+                      onChange={(e) => setExtraChargesGst(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-amber-400 text-sm font-bold focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs text-slate-900 appearance-none pr-8 cursor-pointer"
+                    >
+                      <option value="0">0% GST</option>
+                      <option value="5">5% GST</option>
+                      <option value="12">12% GST</option>
+                      <option value="18">18% GST</option>
+                      <option value="28">28% GST</option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-3.5 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              {/* BILL BREAKDOWN BLUE SUMMARY BOX (Displayed ONLY when products are selected) */}
+              {hasSelectedProducts && (
+                <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-extrabold text-indigo-900 border-b border-indigo-100/80 pb-2 text-xs uppercase tracking-wider">
+                    <span>PURCHASE BILL SUMMARY:</span>
+                    <span>{calculatedLines.length} Product Line(s)</span>
+                  </div>
+
+                  {totalDiscountAmt > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between font-semibold text-slate-700">
+                        <span>Total Product Gross Subtotal:</span>
+                        <span className="font-mono font-bold text-slate-700">₹{totalGrossBase.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between font-bold text-emerald-600">
+                        <span>Total Product Discounts (-):</span>
+                        <span className="font-mono">- ₹{totalDiscountAmt.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between font-semibold text-slate-900">
+                        <span>Total Product Net Base (excl. GST):</span>
+                        <span className="font-mono font-extrabold text-slate-900">₹{totalNetBase.toFixed(2)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between font-semibold text-slate-700">
+                      <span>Total Product Base (excl. GST):</span>
+                      <span className="font-mono font-extrabold text-slate-900">₹{totalNetBase.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between font-bold text-emerald-600">
+                    <span>Total Product GST (+):</span>
+                    <span className="font-mono">+ ₹{totalProductGst.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-extrabold text-indigo-950 border-b border-indigo-100/80 pb-2">
+                    <span>Total Product Paid (inc. GST):</span>
+                    <span className="font-mono">₹{totalProductPaidIncGst.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between font-semibold text-amber-900 pt-1">
+                    <span>Extra Charges Base:</span>
+                    <span className="font-mono font-bold text-amber-900">₹{extrasBase.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold text-amber-800">
+                    <span>Extra Charges GST ({extraChargesGst}%):</span>
+                    <span className="font-mono">+ ₹{extrasGstAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-extrabold text-amber-950 border-b border-indigo-100/80 pb-2">
+                    <span>Total Extra (inc. GST):</span>
+                    <span className="font-mono">₹{totalExtraIncGst.toFixed(2)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between font-extrabold text-indigo-950 text-sm pt-1">
+                    <span>Grand Purchase Bill Total:</span>
+                    <span className="font-mono text-indigo-700 text-base font-black">₹{calculatedGrandTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Buttons (Exact reference styling) */}
+              <div className="pt-2 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -415,16 +1009,23 @@ export default function PurchasePage() {
                     setEditingPurchase(null)
                     resetForm()
                   }}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
+                  className="w-1/2 py-3 px-4 rounded-2xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors shadow-2xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="btn-gold px-4 py-2 shadow-sm flex items-center gap-1.5 font-bold"
+                  className="w-1/2 py-3 px-4 rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{editingPurchase ? 'Update Purchase Order' : 'Save Purchase Order'}</span>}
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Purchase Order</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -432,32 +1033,43 @@ export default function PurchasePage() {
         </div>
       )}
 
-      {/* Delete PO Confirmation Dialog */}
+      {/* DELETE CONFIRMATION DIALOG */}
       {deletingPurchaseId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
-              <Trash2 className="w-6 h-6" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6" />
             </div>
-            <div className="space-y-1">
+
+            <div className="text-center space-y-1">
               <h3 className="text-base font-extrabold text-slate-900">Delete Purchase Order?</h3>
               <p className="text-xs text-slate-500">
-                Are you sure you want to delete this purchase order record? This action cannot be undone.
+                This action will permanently delete this purchase record from the database.
               </p>
             </div>
-            <div className="flex justify-center gap-2 pt-2">
+
+            <div className="flex items-center gap-3 pt-2">
               <button
+                type="button"
                 onClick={() => setDeletingPurchaseId(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDeletePurchase(deletingPurchaseId)}
+                type="button"
                 disabled={saving}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5"
+                onClick={() => handleDeletePurchase(deletingPurchaseId)}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Delete</span>}
+                {saving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Delete</span>
+                )}
               </button>
             </div>
           </div>
