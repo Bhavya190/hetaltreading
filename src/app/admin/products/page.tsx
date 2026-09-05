@@ -33,7 +33,7 @@ export default function AdminProductsPage() {
   const [hsnCode, setHsnCode] = useState('')
   const [name, setName] = useState('')
   const [purchasePrice, setPurchasePrice] = useState('')
-  const [unit, setUnit] = useState('Kg')
+  const [unit, setUnit] = useState('Kilogram')
   const [inventoryStock, setInventoryStock] = useState('')
   const [sellingPrice, setSellingPrice] = useState('')
   const [gstRate, setGstRate] = useState('18')
@@ -64,7 +64,7 @@ export default function AdminProductsPage() {
     setHsnCode('')
     setName('')
     setPurchasePrice('')
-    setUnit('Kg')
+    setUnit('Kilogram')
     setInventoryStock('')
     setSellingPrice('')
     setGstRate('18')
@@ -490,13 +490,13 @@ export default function AdminProductsPage() {
                     onChange={(e) => setUnit(e.target.value)}
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 bg-white"
                   >
-                    <option value="Kg">Kg</option>
-                    <option value="Metric Ton">Metric Ton</option>
-                    <option value="Litre">Litre</option>
-                    <option value="Box">Box</option>
-                    <option value="Piece">Piece</option>
-                    <option value="Bag">Bag</option>
-                    <option value="Bale">Bale</option>
+                    <option value="Kilogram">Kilogram</option>
+                    <option value="Gram">Gram</option>
+                    <option value="Meter">Meter</option>
+                    <option value="Liter">Liter</option>
+                    <option value="Milileter">Milileter</option>
+                    <option value="Pieces">Pieces</option>
+                    <option value="Bags">Bags</option>
                   </select>
                 </div>
 

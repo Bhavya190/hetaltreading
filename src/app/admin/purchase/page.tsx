@@ -65,6 +65,7 @@ export interface PurchaseItemLine {
   productSearch: string
   showDropdown: boolean
   quantity: string
+  unit: string
   discount: string
   totalAmount: string
 }
@@ -76,6 +77,7 @@ const createEmptyItemLine = (): PurchaseItemLine => ({
   productSearch: '',
   showDropdown: false,
   quantity: '',
+  unit: 'Kilogram',
   discount: '',
   totalAmount: '',
 })
@@ -304,7 +306,7 @@ export default function PurchasePage() {
     }
 
     const consolidatedItemName = validLines
-      .map((l) => `${l.productName || l.productSearch} (x${l.q || 1})`)
+      .map((l) => `${l.productName || l.productSearch} (x${l.q || 1} ${l.unit || 'Kilogram'})`)
       .join(', ')
 
     const primaryProductId = validLines[0]?.productId || null
@@ -327,6 +329,7 @@ export default function PurchasePage() {
           productId: l.productId,
           productName: l.productName || l.productSearch,
           quantity: l.q,
+          unit: l.unit || 'Kilogram',
         })),
       }
 
@@ -359,9 +362,10 @@ export default function PurchasePage() {
     if (p.item) {
       const rawParts = p.item.split(',').map((s) => s.trim())
       const loadedLines: PurchaseItemLine[] = rawParts.map((part) => {
-        const match = part.match(/^(.*?)(?:\s*\(x(\d+)\))?$/)
+        const match = part.match(/^(.*?)(?:\s*\(x([\d.]+)\s*(.*?)\))?$/)
         const pName = match ? match[1].trim() : part
         const pQty = match && match[2] ? match[2] : String(p.quantity || 1)
+        const pUnit = match && match[3] ? match[3].trim() : ''
 
         const matchedProd = products.find((prod) => prod.name.toLowerCase() === pName.toLowerCase())
 
@@ -372,6 +376,7 @@ export default function PurchasePage() {
           productSearch: pName,
           showDropdown: false,
           quantity: pQty,
+          unit: pUnit || (matchedProd ? matchedProd.unit : 'Kilogram'),
           discount: p.discount ? String(p.discount) : '',
           totalAmount: '',
         }
@@ -402,7 +407,7 @@ export default function PurchasePage() {
     }
 
     const consolidatedItemName = validLines
-      .map((l) => `${l.productName || l.productSearch} (x${l.q || 1})`)
+      .map((l) => `${l.productName || l.productSearch} (x${l.q || 1} ${l.unit || 'Kilogram'})`)
       .join(', ')
 
     setSaving(true)
@@ -1167,6 +1172,7 @@ export default function PurchasePage() {
                                         productId: p.id,
                                         productName: p.name,
                                         productSearch: p.name,
+                                        unit: p.unit || 'Kilogram',
                                         showDropdown: false,
                                       })
                                     }}
@@ -1209,8 +1215,8 @@ export default function PurchasePage() {
                           </div>
                         )}
 
-                        {/* 3-Column Inputs: PURCHASE QTY, DISCOUNT (%), TOTAL PAID (₹) */}
-                        <div className="grid grid-cols-3 gap-3">
+                        {/* 4-Column Inputs: PURCHASE QTY, UNIT, DISCOUNT (%), LINE TOTAL (₹) */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           <div>
                             <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
                               PURCHASE QTY
@@ -1224,6 +1230,25 @@ export default function PurchasePage() {
                               className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs font-mono text-slate-900"
                               required
                             />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
+                              UNIT
+                            </label>
+                            <select
+                              value={line.unit || (line.matchedProduct ? line.matchedProduct.unit : 'Kilogram')}
+                              onChange={(e) => updateItemLine(line.id, { unit: e.target.value })}
+                              className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs text-slate-900"
+                            >
+                              <option value="Kilogram">Kilogram</option>
+                              <option value="Gram">Gram</option>
+                              <option value="Meter">Meter</option>
+                              <option value="Liter">Liter</option>
+                              <option value="Milileter">Milileter</option>
+                              <option value="Pieces">Pieces</option>
+                              <option value="Bags">Bags</option>
+                            </select>
                           </div>
 
                           <div>

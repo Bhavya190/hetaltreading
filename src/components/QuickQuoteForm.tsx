@@ -11,20 +11,20 @@ export default function QuickQuoteForm({ defaultProduct = '' }: { defaultProduct
     companyName: '',
     productName: defaultProduct || 'Refined Hydrated Lime',
     quantity: '100',
-    unit: 'Metric Ton',
+    unit: 'Kilogram',
     targetPrice: '',
     deliveryLocation: '',
     notes: '',
   })
 
   const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setErrorMsg('')
+    setError('')
 
     try {
       const res = await fetch('/api/quotes', {
@@ -35,219 +35,207 @@ export default function QuickQuoteForm({ defaultProduct = '' }: { defaultProduct
 
       const data = await res.json()
 
-      if (data.success) {
-        setSubmitted(true)
-      } else {
-        setErrorMsg(data.error || 'Failed to submit quote request.')
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to submit RFQ. Please try again.')
       }
+
+      setSuccess(true)
     } catch (err: any) {
-      setErrorMsg('Network error. Please check your connection and try again.')
+      setError(err.message || 'An unexpected error occurred.')
     } finally {
       setLoading(false)
     }
   }
 
-  if (submitted) {
-    return (
-      <div className="glass-card p-8 text-center space-y-4 border-emerald-200 bg-emerald-50/40 animate-in fade-in zoom-in duration-300">
-        <div className="w-16 h-16 bg-emerald-100 border border-emerald-300 rounded-full flex items-center justify-center mx-auto text-emerald-700">
-          <CheckCircle2 className="w-10 h-10" />
-        </div>
-        <h3 className="text-2xl font-extrabold text-slate-900">RFQ Logged into Shop CRM!</h3>
-        <p className="text-slate-700 text-sm max-w-md mx-auto leading-relaxed">
-          Thank you, <span className="text-amber-800 font-bold">{formData.clientName}</span>. Your RFQ for <span className="text-slate-900 font-semibold">{formData.productName} ({formData.quantity} {formData.unit})</span> has been stored in our CRM database. Our sales desk will issue official pricing within 24 hours.
-        </p>
-        <button
-          onClick={() => {
-            setSubmitted(false)
-            setFormData({
-              clientName: '',
-              email: '',
-              phone: '',
-              companyName: '',
-              productName: 'Refined Hydrated Lime',
-              quantity: '100',
-              unit: 'Metric Ton',
-              targetPrice: '',
-              deliveryLocation: '',
-              notes: '',
-            })
-          }}
-          className="btn-outline-navy text-xs mt-4"
-        >
-          Submit Another Request
-        </button>
-      </div>
-    )
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="glass-card p-6 sm:p-8 space-y-6 border-slate-200 shadow-md">
-      <div className="space-y-1">
-        <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 uppercase tracking-wider bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-          <Building2 className="w-3.5 h-3.5" />
-          <span>B2B Quotation Engine</span>
-        </div>
-        <h3 className="text-xl font-extrabold text-slate-900">
-          Request Bulk Trade Quote (RFQ)
-        </h3>
-        <p className="text-xs text-slate-600">
-          Direct factory pricing and custom specs logged automatically into our shop CRM desk.
-        </p>
+    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-2xl relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+      
+      <div className="flex items-center space-x-2 text-amber-800 mb-2">
+        <Sparkles className="w-5 h-5" />
+        <span className="text-xs font-bold uppercase tracking-wider">Instant Quotation Engine</span>
       </div>
 
-      {errorMsg && (
-        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
+      <h3 className="text-2xl font-black text-slate-900 mb-2">
+        Request Official B2B Quote
+      </h3>
+      <p className="text-slate-600 text-sm mb-6">
+        Submit item specs & target pricing. Receive a formal GST-compliant commercial invoice proposal.
+      </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Full Name *
-          </label>
-          <input
-            type="text"
-            required
-            placeholder="e.g. Rajesh Shah"
-            value={formData.clientName}
-            onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Business Email *
-          </label>
-          <input
-            type="email"
-            required
-            placeholder="name@company.com"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Phone / WhatsApp *
-          </label>
-          <input
-            type="tel"
-            required
-            placeholder="+91 98765 43210"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/[^0-9+]/g, '') })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Company Name
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. Shah Industries Pvt Ltd"
-            value={formData.companyName}
-            onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Product / Commodity Required *
-          </label>
-          <input
-            type="text"
-            required
-            placeholder="e.g. Refined Hydrated Lime / Basmati Rice / Stainless Steel Fasteners"
-            value={formData.productName}
-            onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Order Quantity *
-          </label>
-          <input
-            type="number"
-            required
-            min="1"
-            value={formData.quantity}
-            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Unit
-          </label>
-          <select
-            value={formData.unit}
-            onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+      {success ? (
+        <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-6 text-center space-y-4">
+          <CheckCircle2 className="w-12 h-12 text-amber-600 mx-auto" />
+          <h4 className="text-lg font-bold text-slate-900">Request Dispatched!</h4>
+          <p className="text-sm text-slate-700">
+            Thank you, <span className="text-amber-800 font-bold">{formData.clientName}</span>. Your RFQ for <span className="text-slate-900 font-semibold">{formData.productName} ({formData.quantity} {formData.unit})</span> has been stored in our CRM database. Our sales desk will issue official pricing within 24 hours.
+          </p>
+          <button
+            onClick={() => {
+              setSuccess(false)
+              setFormData({
+                clientName: '',
+                email: '',
+                phone: '',
+                companyName: '',
+                productName: 'Refined Hydrated Lime',
+                quantity: '100',
+                unit: 'Kilogram',
+                targetPrice: '',
+                deliveryLocation: '',
+                notes: '',
+              })
+            }}
+            className="text-xs font-bold text-amber-800 underline hover:text-amber-900"
           >
-            <option value="Metric Ton">Metric Ton (MT)</option>
-            <option value="Kg">Kilogram (Kg)</option>
-            <option value="Piece">Piece / Unit</option>
-            <option value="Container (20ft)">Container (20ft)</option>
-            <option value="Container (40ft)">Container (40ft)</option>
-          </select>
+            Submit Another RFQ
+          </button>
         </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
-        <div className="sm:col-span-2">
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Destination / Port of Delivery
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. Mundra Port, Gujarat / ICD Ahmedabad / CIF Dubai"
-            value={formData.deliveryLocation}
-            onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.clientName}
+                onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+                placeholder="e.g. Rajesh Kumar"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Phone / WhatsApp <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="+91 98765 43210"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+              />
+            </div>
+          </div>
 
-        <div className="sm:col-span-2">
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Additional Specifications / Notes
-          </label>
-          <textarea
-            rows={3}
-            placeholder="Specify purity, mesh size, custom packaging, or inspection standards..."
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
-          />
-        </div>
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="rajesh@company.com"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Company Name (Optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  placeholder="e.g. Apex Minerals Pvt Ltd"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg pl-9 pr-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+                />
+                <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              </div>
+            </div>
+          </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full btn-gold py-3.5 text-sm shadow-md shadow-amber-600/20 disabled:opacity-50"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Storing RFQ in Database...</span>
-          </>
-        ) : (
-          <>
-            <Send className="w-4 h-4" />
-            <span>Submit Quotation Request</span>
-          </>
-        )}
-      </button>
-    </form>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Quantity <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Unit
+              </label>
+              <select
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+              >
+                <option value="Kilogram">Kilogram</option>
+                <option value="Gram">Gram</option>
+                <option value="Meter">Meter</option>
+                <option value="Liter">Liter</option>
+                <option value="Milileter">Milileter</option>
+                <option value="Pieces">Pieces</option>
+                <option value="Bags">Bags</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Destination / Port of Delivery
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Mundra Port, Gujarat"
+              value={formData.deliveryLocation}
+              onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Additional Specifications / Notes
+            </label>
+            <textarea
+              rows={3}
+              placeholder="Specify purity, inspection standards, or specific deadlines..."
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-600 focus:ring-1 focus:ring-amber-600 transition-colors"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Send className="w-5 h-5" />
+                <span>Submit RFQ</span>
+              </>
+            )}
+          </button>
+        </form>
+      )}
+    </div>
   )
 }

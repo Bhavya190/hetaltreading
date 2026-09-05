@@ -8,8 +8,10 @@ export async function GET(
   try {
     const rawParams = await params
     const id = decodeURIComponent(rawParams.id)
-    const sale = await (prisma as any).dailySale.findUnique({
-      where: { id },
+    const sale = await (prisma as any).dailySale.findFirst({
+      where: {
+        OR: [{ id }, { billNumber: id }],
+      },
       include: {
         items: true,
       },
