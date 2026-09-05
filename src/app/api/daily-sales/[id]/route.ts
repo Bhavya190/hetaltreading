@@ -1,6 +1,37 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const rawParams = await params
+    const id = decodeURIComponent(rawParams.id)
+    const sale = await (prisma as any).dailySale.findUnique({
+      where: { id },
+      include: {
+        items: true,
+      },
+    })
+
+    if (!sale) {
+      return NextResponse.json(
+        { success: false, error: 'Daily sale bill not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: sale })
+  } catch (error: any) {
+    console.error('Error fetching daily sale bill by ID:', error)
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to fetch daily sale bill' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

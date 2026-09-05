@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   TrendingUp,
   Plus,
@@ -84,6 +86,7 @@ const DEFAULT_DEBT_CUSTOMERS: DebtCustomerOption[] = [
 ]
 
 export default function DailySalePage() {
+  const router = useRouter()
   const [sales, setSales] = useState<DailySaleRecord[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
   const [debtCustomers, setDebtCustomers] = useState<DebtCustomerOption[]>([])
@@ -888,7 +891,7 @@ export default function DailySalePage() {
                 {filteredSales.map((sale) => (
                   <tr
                     key={sale.id}
-                    onClick={() => setSelectedSaleDetail(sale)}
+                    onClick={() => router.push(`/admin/daily-sale/${encodeURIComponent(sale.id)}`)}
                     className={`hover:bg-amber-50/40 cursor-pointer transition-colors ${selectedIds.includes(sale.id) ? 'bg-amber-50/60' : ''}`}
                   >
                     <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
@@ -900,12 +903,26 @@ export default function DailySalePage() {
                       />
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-amber-900 bg-amber-50/40 rounded-lg">
-                      {sale.billNumber}
+                      <Link
+                        href={`/admin/daily-sale/${encodeURIComponent(sale.id)}`}
+                        className="hover:underline hover:text-amber-800"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {sale.billNumber}
+                      </Link>
                     </td>
                     <td className="py-3.5 px-4 text-slate-700 font-mono font-semibold">
                       {formatDateLabel(sale.date)}
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{sale.customerName}</td>
+                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                      <Link
+                        href={`/admin/daily-sale/${encodeURIComponent(sale.id)}`}
+                        className="hover:underline hover:text-amber-800"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {sale.customerName}
+                      </Link>
+                    </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-700">
                       <span className="bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
                         {sale.items?.length || 0} Products
@@ -920,7 +937,7 @@ export default function DailySalePage() {
                     <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700 text-sm">
                       ₹ {sale.grandTotal ? sale.grandTotal.toLocaleString() : 0}
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-1">
+                    <td className="py-3.5 px-4 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -932,15 +949,13 @@ export default function DailySalePage() {
                       >
                         <Share2 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedSaleDetail(sale)
-                        }}
-                        className="btn-gold text-[11px] py-1 px-3 shadow-2xs font-bold"
+                      <Link
+                        href={`/admin/daily-sale/${encodeURIComponent(sale.id)}`}
+                        className="btn-gold text-[11px] py-1 px-3 shadow-2xs font-bold inline-block"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         View Details
-                      </button>
+                      </Link>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

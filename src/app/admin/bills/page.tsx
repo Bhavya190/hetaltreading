@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Share2
 } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import ExportActionBar from '@/components/ExportActionBar'
 import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
 import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
@@ -34,6 +36,7 @@ export interface UnifiedBillRecord {
 }
 
 export default function BillsPage() {
+  const router = useRouter()
   const [bills, setBills] = useState<UnifiedBillRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'ALL' | 'SALES' | 'PURCHASE'>('ALL')
@@ -45,8 +48,6 @@ export default function BillsPage() {
   const [startDate, setStartDate] = useState(todayStr)
   const [endDate, setEndDate] = useState(todayStr)
 
-  // View Detail Modal
-  const [viewingBill, setViewingBill] = useState<UnifiedBillRecord | null>(null)
   const [deletingBillId, setDeletingBillId] = useState<{ id: string; type: 'SALES' | 'PURCHASE' } | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -497,12 +498,16 @@ export default function BillsPage() {
 
                     {/* Bill # */}
                     <td className="py-2.5 px-3 lg:px-4 whitespace-nowrap font-mono font-extrabold text-blue-700">
-                      {b.billNumber}
+                      <Link href={`/admin/bills/${encodeURIComponent(b.id)}`} className="hover:underline">
+                        {b.billNumber}
+                      </Link>
                     </td>
 
                     {/* Party Name */}
                     <td className="py-2.5 px-3 lg:px-4 font-bold text-slate-900 truncate max-w-[160px] xl:max-w-[220px]">
-                      {b.partyName}
+                      <Link href={`/admin/bills/${encodeURIComponent(b.id)}`} className="hover:text-blue-600 transition-colors">
+                        {b.partyName}
+                      </Link>
                     </td>
 
                     {/* Items Summary */}
@@ -526,9 +531,9 @@ export default function BillsPage() {
                     <td className="py-2.5 px-3 lg:px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
-                          onClick={() => setViewingBill(b)}
+                          onClick={() => router.push(`/admin/bills/${encodeURIComponent(b.id)}`)}
                           className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
-                          title="View Invoice Details"
+                          title="View Invoice Details & Calculations"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -558,87 +563,6 @@ export default function BillsPage() {
           </div>
         )}
       </div>
-
-      {/* INVOICE DETAIL VIEW MODAL */}
-      {viewingBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                {viewingBill.type === 'SALES' ? (
-                  <span className="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-2.5 py-1 rounded-md border border-emerald-200 flex items-center gap-1">
-                    <TrendingUp className="w-3.5 h-3.5" />
-                    <span>SALES INVOICE</span>
-                  </span>
-                ) : (
-                  <span className="bg-amber-100 text-amber-900 text-xs font-extrabold px-2.5 py-1 rounded-md border border-amber-200 flex items-center gap-1">
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>PURCHASE INVOICE</span>
-                  </span>
-                )}
-                <span className="font-mono font-extrabold text-slate-900 text-base">
-                  {viewingBill.billNumber}
-                </span>
-              </div>
-              <button
-                onClick={() => setViewingBill(null)}
-                className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Bill Info Card */}
-            <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">DATE:</span>
-                <span className="font-mono font-bold text-slate-900">{viewingBill.date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">
-                  {viewingBill.type === 'SALES' ? 'BUYER / CUSTOMER:' : 'VENDOR / SUPPLIER:'}
-                </span>
-                <span className="font-extrabold text-slate-900">{viewingBill.partyName}</span>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200/60">
-                <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">ITEMS LOGGED:</span>
-                <span className="font-semibold text-slate-800 text-right max-w-[280px]">{viewingBill.itemsSummary}</span>
-              </div>
-            </div>
-
-            {/* Total Amount Card */}
-            <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-2xl flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-900">GRAND INVOICE TOTAL</span>
-                <div className="text-xs text-blue-700 font-semibold">Inclusive of all taxes & charges</div>
-              </div>
-              <div className="text-2xl font-black text-blue-950 font-mono">
-                ₹ {viewingBill.amount.toLocaleString()}
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setViewingBill(null)}
-                className="w-1/2 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="w-1/2 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print Invoice</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* DELETE CONFIRMATION DIALOG */}
       {deletingBillId && (

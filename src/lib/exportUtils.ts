@@ -939,4 +939,393 @@ export function shareCustomerStatementWhatsApp(params: CustomerStatementExportPa
   shareOnWhatsApp(summaryText, params.mobileNumber)
 }
 
+export interface SaleInvoiceExportParams {
+  billNumber: string
+  date: string
+  customerName: string
+  subtotal: number
+  extraCharges: number
+  grandTotal: number
+  items: {
+    productName: string
+    serialNumber?: string
+    gstRate?: string | number
+    unit?: string
+    quantity: number
+    unitPrice: number
+    discount: number
+    netTotal: number
+  }[]
+  bankDetails?: BankDetails
+  logoUrl?: string
+}
+
+export interface CalculatedGstItem {
+  gstRateNum: number
+  deductionPercent: number
+  rawAmount: number
+  cgstRate: number
+  sgstRate: number
+  cgstAmount: number
+  sgstAmount: number
+  totalGstAmount: number
+  itemTotal: number
+}
+
+export function calculateItemGst(item: { netTotal: number; gstRate?: string | number }): CalculatedGstItem {
+  const netTotal = item.netTotal || 0
+  const rateStr = String(item.gstRate || '18').replace('%', '')
+  const gstRateNum = parseFloat(rateStr) || 18
+
+  let deductionPercent = 15.25
+  if (gstRateNum === 5) {
+    deductionPercent = 4.77
+  } else if (gstRateNum === 18) {
+    deductionPercent = 15.25
+  } else if (gstRateNum > 0) {
+    deductionPercent = (1 - 1 / (1 + gstRateNum / 100)) * 100
+  } else {
+    deductionPercent = 0
+  }
+
+  const rawAmount = netTotal * (1 - deductionPercent / 100)
+  const cgstRate = gstRateNum / 2
+  const sgstRate = gstRateNum / 2
+  const cgstAmount = rawAmount * (cgstRate / 100)
+  const sgstAmount = rawAmount * (sgstRate / 100)
+  const totalGstAmount = cgstAmount + sgstAmount
+  const itemTotal = rawAmount + totalGstAmount
+
+  return {
+    gstRateNum,
+    deductionPercent,
+    rawAmount,
+    cgstRate,
+    sgstRate,
+    cgstAmount,
+    sgstAmount,
+    totalGstAmount,
+    itemTotal,
+  }
+}
+
+export function calculateBillGstTotals<T extends { netTotal: number; gstRate?: string | number }>(
+  items: T[],
+  extraCharges: number = 0
+) {
+  let totalRawAmount = 0
+  let totalCgstAmount = 0
+  let totalSgstAmount = 0
+
+  const processedItems = (items || []).map((it) => {
+    const calc = calculateItemGst(it)
+    totalRawAmount += calc.rawAmount
+    totalCgstAmount += calc.cgstAmount
+    totalSgstAmount += calc.sgstAmount
+    return {
+      ...it,
+      calc,
+    }
+  })
+
+  const totalGstAmount = totalCgstAmount + totalSgstAmount
+  const calculatedGrandTotal = totalRawAmount + totalGstAmount + (extraCharges || 0)
+
+  return {
+    processedItems,
+    totalRawAmount,
+    totalCgstAmount,
+    totalSgstAmount,
+    totalGstAmount,
+    extraCharges,
+    calculatedGrandTotal,
+  }
+}
+
+export function printSaleInvoice(params: SaleInvoiceExportParams) {
+  let bankDetails: BankDetails = getSavedBankDetails()
+  if (params.bankDetails) {
+    bankDetails = { ...bankDetails, ...params.bankDetails }
+  }
+  const logoUrlPath = params.logoUrl || '/Hetal-Treading-Logo-bg-removed.png'
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Please allow popups to print/export PDF reports.')
+    return
+  }
+
+  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}${logoUrlPath}` : logoUrlPath
+  const upiUrl = `upi://pay?pa=${encodeURIComponent(bankDetails.upiId || 'hetaltrading@upi')}&pn=${encodeURIComponent(bankDetails.accountName || 'Hetal Trading Company')}&cu=INR`
+  const qrCodeUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUrl)}&size=200&margin=1`
+
+  const gstBreakdown = calculateBillGstTotals(params.items || [], params.extraCharges || 0)
+
+  const itemsHtml = gstBreakdown.processedItems.map((it, i) => `
+    <tr style="background-color: ${i % 2 === 0 ? '#ffffff' : '#f8fafc'}; font-size: 10.5px;">
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${it.productName}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #64748b;">${it.serialNumber || '-'}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${it.quantity} ${it.unit || 'Kg'}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace;">₹ ${(it.unitPrice || 0).toLocaleString()}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #dc2626;">₹ ${(it.discount || 0).toLocaleString()}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: 600;">₹ ${it.calc.rawAmount.toFixed(2)}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; text-align: center; font-size: 10px;">
+        <strong>${it.calc.gstRateNum}%</strong><br/>
+        <span style="color: #64748b; font-size: 9px;">CGST ${it.calc.cgstRate}% + SGST ${it.calc.sgstRate}%</span>
+      </td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #0284c7;">₹ ${it.calc.cgstAmount.toFixed(2)}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #0284c7;">₹ ${it.calc.sgstAmount.toFixed(2)}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; color: #16a34a; text-align: right;">₹ ${(it.netTotal || 0).toLocaleString()}</td>
+    </tr>
+  `).join('')
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Invoice #${params.billNumber} - Hetal Trading Company</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; background-color: #f8fafc; color: #0f172a; font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { padding: 20px 0; }
+          .page-container { max-width: 210mm; margin: 0 auto; background: #ffffff; padding: 24px 28px; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+          .header-container { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #d97706; padding-bottom: 12px; margin-bottom: 16px; }
+          .header-left { display: flex; align-items: center; gap: 14px; }
+          .company-logo { height: 50px; width: auto; max-width: 150px; object-fit: contain; }
+          .company-info h1 { font-size: 17px; font-weight: 800; color: #78350f; margin: 0; letter-spacing: 0.3px; text-transform: uppercase; }
+          .company-info p { font-size: 10.5px; color: #64748b; margin: 2px 0 0 0; font-weight: 500; }
+          .report-badge { display: inline-block; margin-top: 3px; font-size: 11px; font-weight: 700; color: #92400e; background-color: #fef3c7; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde68a; }
+          
+          .bill-meta-card {
+            background-color: #0f172a;
+            color: #ffffff;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .bill-no { font-size: 16px; font-weight: 800; color: #fbbf24; font-family: monospace; }
+          .cust-name { font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 2px; }
+          .bill-date { font-size: 11px; color: #94a3b8; font-family: monospace; text-align: right; }
+
+          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          th { padding: 8px 8px; border: 1px solid #cbd5e1; background-color: #0f172a; color: #ffffff; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+          td { padding: 7px 8px; border: 1px solid #e2e8f0; color: #1e293b; font-size: 10.5px; }
+
+          .totals-box {
+            margin-left: auto;
+            width: 290px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 12px 16px;
+            background-color: #f8fafc;
+            margin-bottom: 20px;
+            font-size: 11px;
+          }
+          .totals-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+          .grand-total-row { display: flex; justify-content: space-between; padding-top: 8px; border-top: 2px solid #0f172a; font-size: 13.5px; font-weight: 800; color: #15803d; }
+
+          .payment-section {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background-color: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            page-break-inside: avoid;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          .bank-details-col { flex: 1; }
+          .payment-title { font-size: 11.5px; font-weight: 800; color: #92400e; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.3px; }
+          .bank-grid { display: grid; grid-template-columns: 100px 1fr; gap: 4px 10px; font-size: 11px; }
+          .bank-label { color: #78350f; font-weight: 600; }
+          .bank-val { color: #0f172a; font-weight: 700; }
+          .mono-val { font-family: monospace; font-size: 11.5px; }
+          .upi-qr-col { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-left: 16px; border-left: 1px dashed #fde68a; min-width: 140px; text-align: center; }
+          .qr-card { background: #ffffff; padding: 6px; border-radius: 6px; border: 1px solid #fcd34d; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+          .qr-card img { width: 90px; height: 90px; display: block; margin: 0 auto; }
+          .upi-id-badge { margin-top: 5px; font-size: 10px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 2px 6px; border-radius: 4px; font-family: monospace; border: 1px solid #fde68a; }
+          .payment-note { margin-top: 5px; font-size: 9px; color: #78350f; font-style: italic; max-width: 140px; line-height: 1.3; }
+          .footer { margin-top: 18px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 9.5px; color: #94a3b8; text-align: center; }
+
+          @media print {
+            body { padding: 0; margin: 0; background: #ffffff; }
+            .page-container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+            @page { size: A4 portrait; margin: 10mm; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page-container">
+          <div class="header-container">
+            <div class="header-left">
+              <img src="${logoUrl}" alt="Hetal Trading Company Logo" class="company-logo" />
+              <div class="company-info">
+                <h1>Hetal Trading Company</h1>
+                <p>Industrial Chemical Procurement & Sales Ledger</p>
+                <div class="report-badge">GST TAX INVOICE / SALE BILL</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bill-meta-card">
+            <div>
+              <div class="bill-no">Bill #: ${params.billNumber}</div>
+              <div class="cust-name">Customer: ${params.customerName}</div>
+            </div>
+            <div class="bill-date">
+              <div>Date: ${params.date ? params.date.split('T')[0] : ''}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>SKU / Serial</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Discount</th>
+                <th>Raw Taxable Amt</th>
+                <th style="text-align: center;">GST Rate</th>
+                <th>CGST Amt</th>
+                <th>SGST Amt</th>
+                <th style="text-align: right;">Net Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml || `<tr><td colspan="10" style="text-align: center; color: #94a3b8;">No line items found.</td></tr>`}
+            </tbody>
+          </table>
+
+          <div class="totals-box">
+            <div class="totals-row"><span>Raw Subtotal (Taxable):</span><strong>₹ ${gstBreakdown.totalRawAmount.toFixed(2)}</strong></div>
+            <div class="totals-row"><span>CGST Total:</span><strong>₹ ${gstBreakdown.totalCgstAmount.toFixed(2)}</strong></div>
+            <div class="totals-row"><span>SGST Total:</span><strong>₹ ${gstBreakdown.totalSgstAmount.toFixed(2)}</strong></div>
+            <div class="totals-row"><span>Total GST Tax:</span><strong>₹ ${gstBreakdown.totalGstAmount.toFixed(2)}</strong></div>
+            <div class="totals-row"><span>Extra Charges:</span><strong>₹ ${(gstBreakdown.extraCharges || 0).toFixed(2)}</strong></div>
+            <div class="grand-total-row"><span>Grand Total:</span><span>₹ ${gstBreakdown.calculatedGrandTotal.toFixed(2)}</span></div>
+          </div>
+
+          <div class="payment-section">
+            <div class="bank-details-col">
+              <div class="payment-title">🏦 Direct Bank Transfer Details</div>
+              <div class="bank-grid">
+                <div class="bank-label">Account Holder:</div>
+                <div class="bank-val">${bankDetails.accountName}</div>
+                <div class="bank-label">Bank Name:</div>
+                <div class="bank-val">${bankDetails.bankName}</div>
+                <div class="bank-label">Account No:</div>
+                <div class="bank-val mono-val">${bankDetails.accountNumber}</div>
+                <div class="bank-label">IFSC Code:</div>
+                <div class="bank-val mono-val">${bankDetails.ifscCode}</div>
+                <div class="bank-label">Branch:</div>
+                <div class="bank-val">${bankDetails.branch}</div>
+              </div>
+            </div>
+
+            <div class="upi-qr-col">
+              <div class="payment-title" style="margin-bottom: 6px;">📲 Scan & Pay via UPI</div>
+              <div class="qr-card">
+                <img src="${qrCodeUrl}" alt="Scan QR Code to Pay via UPI" />
+              </div>
+              <div class="upi-id-badge">${bankDetails.upiId}</div>
+              ${bankDetails.note ? `<div class="payment-note">${bankDetails.note}</div>` : ''}
+            </div>
+          </div>
+
+          <div class="footer">
+            Hetal Trading Company • GST Tax Invoice • Computer Generated Document
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 500);
+          };
+        </script>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+}
+
+export function exportSaleInvoiceExcel(params: SaleInvoiceExportParams) {
+  const gstBreakdown = calculateBillGstTotals(params.items || [], params.extraCharges || 0)
+
+  const csvRows: string[] = []
+  csvRows.push(`"GST TAX INVOICE / SALE BILL DETAILS"`)
+  csvRows.push(`"Bill Number:","${params.billNumber}"`)
+  csvRows.push(`"Customer Name:","${params.customerName.replace(/"/g, '""')}"`)
+  csvRows.push(`"Date:","${params.date ? params.date.split('T')[0] : ''}"`)
+  csvRows.push(`""`)
+
+  csvRows.push(`"PRODUCT LINE ITEMS WITH GST BREAKDOWN"`)
+  csvRows.push(`"Product Name","SKU / Serial","Qty","Unit Price (₹)","Discount (₹)","Raw Taxable Amount (₹)","GST Rate (%)","CGST (%)","CGST Amount (₹)","SGST (%)","SGST Amount (₹)","Net Total (₹)"`)
+  gstBreakdown.processedItems.forEach((it) => {
+    csvRows.push([
+      `"${(it.productName || '').replace(/"/g, '""')}"`,
+      `"${it.serialNumber || '-'}"`,
+      `"${it.quantity} ${it.unit || 'Kg'}"`,
+      `"${it.unitPrice}"`,
+      `"${it.discount}"`,
+      `"${it.calc.rawAmount.toFixed(2)}"`,
+      `"${it.calc.gstRateNum}%"`,
+      `"${it.calc.cgstRate}%"`,
+      `"${it.calc.cgstAmount.toFixed(2)}"`,
+      `"${it.calc.sgstRate}%"`,
+      `"${it.calc.sgstAmount.toFixed(2)}"`,
+      `"${it.netTotal}"`
+    ].join(','))
+  })
+
+  csvRows.push(`""`)
+  csvRows.push(`"GST BREAKDOWN SUMMARY"`)
+  csvRows.push(`"Raw Subtotal (Taxable Amount):","₹ ${gstBreakdown.totalRawAmount.toFixed(2)}"`)
+  csvRows.push(`"CGST Total:","₹ ${gstBreakdown.totalCgstAmount.toFixed(2)}"`)
+  csvRows.push(`"SGST Total:","₹ ${gstBreakdown.totalSgstAmount.toFixed(2)}"`)
+  csvRows.push(`"Total GST Tax:","₹ ${gstBreakdown.totalGstAmount.toFixed(2)}"`)
+  csvRows.push(`"Extra Charges:","₹ ${gstBreakdown.extraCharges.toFixed(2)}"`)
+  csvRows.push(`"Grand Total:","₹ ${gstBreakdown.calculatedGrandTotal.toFixed(2)}"`)
+
+  const csvString = '\uFEFF' + csvRows.join('\r\n')
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', `Invoice_${params.billNumber}_${new Date().toISOString().split('T')[0]}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+export function shareSaleInvoiceWhatsApp(params: SaleInvoiceExportParams) {
+  const gstBreakdown = calculateBillGstTotals(params.items || [], params.extraCharges || 0)
+
+  const itemsText = gstBreakdown.processedItems
+    .map((it) => `• ${it.productName} (${it.quantity} ${it.unit || 'Kg'}) [GST ${it.calc.gstRateNum}%: CGST ₹${it.calc.cgstAmount.toFixed(2)} + SGST ₹${it.calc.sgstAmount.toFixed(2)}] - ₹${it.netTotal.toLocaleString()}`)
+    .join('\n')
+
+  const msg =
+    `🧾 *GST Tax Invoice #${params.billNumber}*\n` +
+    `*Customer:* ${params.customerName}\n` +
+    `*Date:* ${params.date ? params.date.split('T')[0] : ''}\n\n` +
+    `📦 *Items Purchased:*\n${itemsText}\n\n` +
+    `📊 *Tax Breakdown:*\n` +
+    `• Raw Subtotal: ₹${gstBreakdown.totalRawAmount.toFixed(2)}\n` +
+    `• CGST Total: ₹${gstBreakdown.totalCgstAmount.toFixed(2)}\n` +
+    `• SGST Total: ₹${gstBreakdown.totalSgstAmount.toFixed(2)}\n` +
+    `• Extra Charges: ₹${gstBreakdown.extraCharges.toFixed(2)}\n` +
+    `💵 *Grand Total:* ₹${gstBreakdown.calculatedGrandTotal.toFixed(2)}\n\n` +
+    `Thank you for doing business with Hetal Trading Company!`
+
+  shareOnWhatsApp(msg)
+}
+
+
+
 
