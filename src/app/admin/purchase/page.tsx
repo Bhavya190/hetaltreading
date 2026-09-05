@@ -630,44 +630,100 @@ export default function PurchasePage() {
 
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        {/* Table Top Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col lg:flex-row items-center justify-between gap-3">
-          {selectedVendorNameView ? (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setSelectedVendorNameView(null)
-                  setSelectedIds([])
-                  setSearchQuery('')
-                }}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 hover:text-amber-950 bg-amber-100/90 hover:bg-amber-200 border border-amber-300 px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to All Vendors</span>
-              </button>
-              <div>
-                <h2 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                  {selectedVendorNameView} ({filteredSelectedVendorPurchases.length})
-                </h2>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Total Purchases: ₹ {selectedVendorPurchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0).toLocaleString()}
-                </p>
+        {/* Table Top Toolbar: 2 Rows */}
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 space-y-3">
+          {/* ROW 1: Title / Back Button on Left, Export Action Bar on Right */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-200/80 w-full">
+            {selectedVendorNameView ? (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setSelectedVendorNameView(null)
+                    setSelectedIds([])
+                    setSearchQuery('')
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 hover:text-amber-950 bg-amber-100/90 hover:bg-amber-200 border border-amber-300 px-3 py-1.5 rounded-xl transition-colors shadow-2xs"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to All Vendors</span>
+                </button>
+                <div>
+                  <h2 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                    {selectedVendorNameView} ({filteredSelectedVendorPurchases.length})
+                  </h2>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Total Purchases: ₹ {selectedVendorPurchases.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0).toLocaleString()}
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <h2 className="font-extrabold text-slate-900 text-sm sm:text-base whitespace-nowrap">
-                Vendors Purchase Directory ({filteredVendorSummaries.length})
-              </h2>
-              {selectedVendorSummaryCodes.length > 0 && (
-                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                  {selectedVendorSummaryCodes.length} Selected
-                </span>
+            ) : (
+              <div className="flex items-center gap-3">
+                <h2 className="font-extrabold text-slate-900 text-sm sm:text-base whitespace-nowrap">
+                  Vendors Purchase Directory ({filteredVendorSummaries.length})
+                </h2>
+                {selectedVendorSummaryCodes.length > 0 && (
+                  <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    {selectedVendorSummaryCodes.length} Selected
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              {selectedVendorNameView ? (
+                <ExportActionBar
+                  title={`Purchase Orders - ${selectedVendorNameView}`}
+                  filename={`hetal_purchase_orders_${selectedVendorNameView.replace(/\s+/g, '_')}`}
+                  data={exportPurchases}
+                  selectedCount={selectedIds.length}
+                  excelHeaders={[
+                    { label: 'Order Number', key: 'orderNumber' },
+                    { label: 'Date', key: 'date' },
+                    { label: 'Vendor', key: 'vendor' },
+                    { label: 'Items Purchased', key: 'item' },
+                    { label: 'Quantity', key: 'quantity' },
+                    { label: 'Discount (%)', key: 'discount' },
+                    { label: 'Extra Charges (₹)', key: 'extraCharges' },
+                    { label: 'Extra GST (%)', key: 'extraChargesGst' },
+                    { label: 'Total Paid (₹)', key: 'totalAmount' },
+                  ]}
+                  pdfHeaders={['PO #', 'Date', 'Vendor', 'Items', 'Qty', 'Extra (₹)', 'Total Paid (₹)']}
+                  pdfRows={exportPurchases.map((p) => [
+                    p.orderNumber || p.id,
+                    p.date,
+                    p.vendor,
+                    p.item,
+                    p.quantity,
+                    `₹${(p.extraCharges || 0).toLocaleString()}`,
+                    `₹${(p.totalAmount || 0).toLocaleString()}`,
+                  ])}
+                />
+              ) : (
+                <ExportActionBar
+                  title="Vendors Purchase Directory"
+                  filename="hetal_trading_vendors_purchase_directory"
+                  data={exportVendorSummaries}
+                  selectedCount={selectedVendorSummaryCodes.length}
+                  excelHeaders={[
+                    { label: 'Vendor ID', key: 'vendorCode' },
+                    { label: 'Vendor Name', key: 'vendorName' },
+                    { label: 'Total Orders', key: 'totalOrders' },
+                    { label: 'Total Purchase Amount (₹)', key: 'totalPurchaseAmount' },
+                  ]}
+                  pdfHeaders={['Vendor ID', 'Vendor Name', 'Total Orders', 'Total Purchase Amount (₹)']}
+                  pdfRows={exportVendorSummaries.map((v) => [
+                    v.vendorCode,
+                    v.vendorName,
+                    `${v.totalOrders} Orders`,
+                    `₹${v.totalPurchaseAmount.toLocaleString()}`,
+                  ])}
+                />
               )}
             </div>
-          )}
+          </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+          {/* ROW 2: Date Range Filter on Left, Search Bar on Right */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1 w-full">
             <DateRangeFilter
               mode={dateFilterMode}
               startDate={startDate}
@@ -679,66 +735,16 @@ export default function PurchasePage() {
               totalCount={purchases.length}
             />
 
-            <div className="relative flex-1 sm:w-56">
+            <div className="relative w-full sm:w-64">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder={selectedVendorNameView ? "Search PO #, item, date..." : "Search vendor name, ID..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
               />
             </div>
-
-            {selectedVendorNameView ? (
-              <ExportActionBar
-                title={`Purchase Orders - ${selectedVendorNameView}`}
-                filename={`hetal_purchase_orders_${selectedVendorNameView.replace(/\s+/g, '_')}`}
-                data={exportPurchases}
-                selectedCount={selectedIds.length}
-                excelHeaders={[
-                  { label: 'Order Number', key: 'orderNumber' },
-                  { label: 'Date', key: 'date' },
-                  { label: 'Vendor', key: 'vendor' },
-                  { label: 'Items Purchased', key: 'item' },
-                  { label: 'Quantity', key: 'quantity' },
-                  { label: 'Discount (%)', key: 'discount' },
-                  { label: 'Extra Charges (₹)', key: 'extraCharges' },
-                  { label: 'Extra GST (%)', key: 'extraChargesGst' },
-                  { label: 'Total Paid (₹)', key: 'totalAmount' },
-                ]}
-                pdfHeaders={['PO #', 'Date', 'Vendor', 'Items', 'Qty', 'Extra (₹)', 'Total Paid (₹)']}
-                pdfRows={exportPurchases.map((p) => [
-                  p.orderNumber || p.id,
-                  p.date,
-                  p.vendor,
-                  p.item,
-                  p.quantity,
-                  `₹${(p.extraCharges || 0).toLocaleString()}`,
-                  `₹${(p.totalAmount || 0).toLocaleString()}`,
-                ])}
-              />
-            ) : (
-              <ExportActionBar
-                title="Vendors Purchase Directory"
-                filename="hetal_trading_vendors_purchase_directory"
-                data={exportVendorSummaries}
-                selectedCount={selectedVendorSummaryCodes.length}
-                excelHeaders={[
-                  { label: 'Vendor ID', key: 'vendorCode' },
-                  { label: 'Vendor Name', key: 'vendorName' },
-                  { label: 'Total Orders', key: 'totalOrders' },
-                  { label: 'Total Purchase Amount (₹)', key: 'totalPurchaseAmount' },
-                ]}
-                pdfHeaders={['Vendor ID', 'Vendor Name', 'Total Orders', 'Total Purchase Amount (₹)']}
-                pdfRows={exportVendorSummaries.map((v) => [
-                  v.vendorCode,
-                  v.vendorName,
-                  `${v.totalOrders} Orders`,
-                  `₹${v.totalPurchaseAmount.toLocaleString()}`,
-                ])}
-              />
-            )}
           </div>
         </div>
 

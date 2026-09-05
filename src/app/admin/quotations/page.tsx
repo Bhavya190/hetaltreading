@@ -311,16 +311,32 @@ export default function QuotationsPage() {
 
       {/* Quotations Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({filteredQuotes.length})</div>
-            {selectedIds.length > 0 && (
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {selectedIds.length} Selected
-              </span>
-            )}
+        {/* Top Action Bar: 2 Rows */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 space-y-3">
+          {/* ROW 1: Title on Left, Export Actions on Right */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-200/80 w-full">
+            <div className="flex items-center gap-3">
+              <div className="font-bold text-slate-900 text-sm">Quotations Pipeline ({filteredQuotes.length})</div>
+              {selectedIds.length > 0 && (
+                <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                  {selectedIds.length} Selected
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <ExportActionBar
+                onExportPDF={handleExportPDF}
+                onExportExcel={handleExportExcel}
+                onPrint={handlePrint}
+                onShareWhatsApp={handleShareWhatsApp}
+                selectedCount={selectedIds.length}
+              />
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+
+          {/* ROW 2: Date Range Filter on Left, Search Bar on Right */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1 w-full">
             <DateRangeFilter
               mode={dateFilterMode}
               startDate={startDate}
@@ -332,24 +348,16 @@ export default function QuotationsPage() {
               totalCount={quotes.length}
             />
 
-            <div className="relative flex-1 sm:w-48">
+            <div className="relative w-full sm:w-64">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search RFQ, client..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
               />
             </div>
-
-            <ExportActionBar
-              onExportPDF={handleExportPDF}
-              onExportExcel={handleExportExcel}
-              onPrint={handlePrint}
-              onShareWhatsApp={handleShareWhatsApp}
-              selectedCount={selectedIds.length}
-            />
           </div>
         </div>
 

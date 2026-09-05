@@ -336,59 +336,51 @@ export default function BillsPage() {
       {/* Main Table Card with Tab Switching & Search */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {/* Top Action Bar: Tabs & Search Input */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row items-center justify-between gap-4">
-          {/* TAB SWITCHING CONTROLS */}
-          <div className="flex items-center bg-slate-200/70 p-1 rounded-xl w-full sm:w-auto">
-            <button
-              onClick={() => setActiveTab('ALL')}
-              className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'ALL'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>All Bills ({bills.length})</span>
-            </button>
+        {/* Top Action Bar: 2 Rows */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 space-y-3">
+          {/* ROW 1: Tabs on Left, Export Actions on Right */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-200/80 w-full">
+            {/* TAB SWITCHING CONTROLS */}
+            <div className="flex items-center bg-slate-200/70 p-1 rounded-xl w-full sm:w-auto">
+              <button
+                onClick={() => setActiveTab('ALL')}
+                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>All Bills ({bills.length})</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('SALES')}
-              className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'SALES'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Sales Bills ({salesBillsList.length})</span>
-            </button>
+              <button
+                onClick={() => setActiveTab('SALES')}
+                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'SALES'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Sales Bills ({salesBillsList.length})</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('PURCHASE')}
-              className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'PURCHASE'
-                  ? 'bg-amber-700 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Purchase Bills ({purchaseBillsList.length})</span>
-            </button>
-          </div>
+              <button
+                onClick={() => setActiveTab('PURCHASE')}
+                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'PURCHASE'
+                    ? 'bg-amber-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Purchase Bills ({purchaseBillsList.length})</span>
+              </button>
+            </div>
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pt-2 border-t border-slate-200 w-full">
-            <DateRangeFilter
-              mode={dateFilterMode}
-              startDate={startDate}
-              endDate={endDate}
-              onModeChange={setDateFilterMode}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
-              todayCount={bills.filter((b) => (b.date || '').split('T')[0] === todayStr).length}
-              totalCount={bills.length}
-            />
-
-            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            {/* EXPORT ACTION BAR */}
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
               {selectedIds.length > 0 && (
                 <span className="bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
                   {selectedIds.length} Selected
@@ -401,18 +393,32 @@ export default function BillsPage() {
                 onShareWhatsApp={handleShareWhatsApp}
                 selectedCount={selectedIds.length}
               />
+            </div>
+          </div>
 
-              {/* Search Input */}
-              <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search bill #, party, or items..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-blue-600 text-slate-900 font-medium"
-                />
-              </div>
+          {/* ROW 2: Date Range Filter on Left, Search Bar on Right */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1 w-full">
+            <DateRangeFilter
+              mode={dateFilterMode}
+              startDate={startDate}
+              endDate={endDate}
+              onModeChange={setDateFilterMode}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              todayCount={bills.filter((b) => (b.date || '').split('T')[0] === todayStr).length}
+              totalCount={bills.length}
+            />
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search bill #, party, or items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-blue-600 text-slate-900 font-medium"
+              />
             </div>
           </div>
         </div>
