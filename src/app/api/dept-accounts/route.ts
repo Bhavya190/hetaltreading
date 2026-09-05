@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { recalculateDeptAccountLedger } from '@/lib/deptAccountUtils'
 
 export async function GET() {
   try {
-    let deptAccounts
+    let deptAccounts: any[] = []
     try {
       deptAccounts = await (prisma as any).deptAccount.findMany({
         include: {
           transactions: {
-            orderBy: { createdAt: 'desc' },
+            orderBy: { date: 'desc' },
           },
           payments: {
-            orderBy: { createdAt: 'desc' },
+            orderBy: { date: 'desc' },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -21,7 +22,7 @@ export async function GET() {
       deptAccounts = await (prisma as any).deptAccount.findMany({
         include: {
           transactions: {
-            orderBy: { createdAt: 'desc' },
+            orderBy: { date: 'desc' },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -42,7 +43,15 @@ export async function GET() {
       }))
     }
 
-    return NextResponse.json({ success: true, source: 'database', data: deptAccounts })
+    // Ensure every account's ledger calculations are 100% accurate and up-to-date
+    const freshAccounts = await Promise.all(
+      deptAccounts.map(async (acc) => {
+        const recalculated = await recalculateDeptAccountLedger(acc.id)
+        return recalculated || acc
+      })
+    )
+
+    return NextResponse.json({ success: true, source: 'database', data: freshAccounts })
   } catch (error: any) {
     console.error('Error fetching Dept accounts:', error)
     return NextResponse.json(

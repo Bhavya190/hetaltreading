@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, category, contactPerson, phone, city } = body
+    const { name, contactPerson, phone, city } = body
 
     if (!name || !contactPerson || !phone) {
       return NextResponse.json(
@@ -35,7 +35,6 @@ export async function POST(request: Request) {
       data: {
         vendorCode,
         name,
-        category: category || 'Industrial Chemicals & Minerals',
         contactPerson,
         phone,
         city: city || '',

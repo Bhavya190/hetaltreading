@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { recalculateDeptAccountLedger } from '@/lib/deptAccountUtils'
 
 export async function GET(
   request: Request,
@@ -55,28 +56,8 @@ export async function POST(
       },
     })
 
-    // Recalculate DeptAccount total balances
-    const allTransactions = await (prisma as any).debtTransaction.findMany({
-      where: { deptAccountId: id },
-    })
-
-    const totalDebt = allTransactions.reduce((acc: number, t: any) => acc + (t.billAmount || 0), 0)
-    const totalPaid = allTransactions.reduce((acc: number, t: any) => acc + (t.paidAmount || 0), 0)
-    const totalBalance = Math.max(0, totalDebt - totalPaid)
-
-    const updatedAccount = await (prisma as any).deptAccount.update({
-      where: { id },
-      data: {
-        totalDebtAmount: totalDebt,
-        totalPaidAmount: totalPaid,
-        balanceDue: totalBalance,
-      },
-      include: {
-        transactions: {
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    })
+    // Recalculate DeptAccount total balances & allocations
+    const updatedAccount = await recalculateDeptAccountLedger(id)
 
     return NextResponse.json(
       { success: true, data: transaction, account: updatedAccount },

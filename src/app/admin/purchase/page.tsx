@@ -54,7 +54,6 @@ export interface VendorOption {
   id: string
   name: string
   vendorCode?: string
-  category?: string
   phone?: string
   city?: string
 }
@@ -185,7 +184,6 @@ export default function PurchasePage() {
             id: v.id,
             name: v.name,
             vendorCode: v.vendorCode || '',
-            category: v.category || '',
             phone: v.phone || '',
             city: v.city || '',
           }))
@@ -1042,7 +1040,6 @@ export default function PurchasePage() {
                             className="p-3 hover:bg-amber-50 cursor-pointer transition-colors text-xs flex items-center justify-between"
                           >
                             <span className="font-extrabold text-slate-900">{v.name}</span>
-                            {v.category && <span className="text-[11px] text-slate-500">{v.category}</span>}
                           </div>
                         ))
                       )}

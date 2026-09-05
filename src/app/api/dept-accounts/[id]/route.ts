@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { recalculateDeptAccountLedger } from '@/lib/deptAccountUtils'
 
 export async function GET(
   request: Request,
@@ -8,6 +9,10 @@ export async function GET(
   try {
     const rawParams = await params
     const id = decodeURIComponent(rawParams.id)
+    
+    // Always sync & recalculate ledger for accuracy
+    await recalculateDeptAccountLedger(id)
+
     let account
 
     try {

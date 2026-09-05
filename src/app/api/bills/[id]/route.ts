@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { recalculateDeptAccountLedger } from '@/lib/deptAccountUtils'
 
 export async function GET(
   request: Request,
@@ -141,6 +142,16 @@ export async function GET(
         where: { billNumber: id },
         include: { deptAccount: true },
       })
+    }
+
+    if (debtTxn) {
+      if (debtTxn.deptAccountId) {
+        await recalculateDeptAccountLedger(debtTxn.deptAccountId)
+        debtTxn = await (prisma as any).debtTransaction.findUnique({
+          where: { id: debtTxn.id },
+          include: { deptAccount: true },
+        })
+      }
     }
 
     if (debtTxn) {

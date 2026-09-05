@@ -9,7 +9,6 @@ export interface VendorRecord {
   id: string
   vendorCode?: string
   name: string
-  category: string
   contactPerson: string
   phone: string
   city: string
@@ -28,33 +27,9 @@ export default function VendorsPage() {
 
   // Form State
   const [name, setName] = useState('')
-  const [category, setCategory] = useState('Industrial Chemicals & Minerals')
   const [contactPerson, setContactPerson] = useState('')
   const [phone, setPhone] = useState('')
   const [city, setCity] = useState('')
-
-  const SAMPLE_VENDORS: VendorRecord[] = [
-    {
-      id: 'VEN-01',
-      vendorCode: 'VEN-01',
-      name: 'Gujarat Chemicals & Minerals Corp',
-      category: 'Industrial Chemicals & Minerals',
-      contactPerson: 'Kishorebhai Patel',
-      phone: '+91 98250 11223',
-      city: 'Ahmedabad, Gujarat',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'VEN-02',
-      vendorCode: 'VEN-02',
-      name: 'Saurashtra Lime & Gypsum Mines',
-      category: 'Industrial Chemicals & Minerals',
-      contactPerson: 'Ramesh Sundaram',
-      phone: '+91 99090 44556',
-      city: 'Porbandar, Gujarat',
-      status: 'ACTIVE',
-    },
-  ]
 
   const fetchVendors = async () => {
     try {
@@ -83,7 +58,6 @@ export default function VendorsPage() {
     setContactPerson('')
     setPhone('')
     setCity('')
-    setCategory('Industrial Chemicals & Minerals')
   }
 
   const handleAddVendor = async (e: React.FormEvent) => {
@@ -95,7 +69,7 @@ export default function VendorsPage() {
       const res = await fetch('/api/vendors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category, contactPerson, phone, city }),
+        body: JSON.stringify({ name, contactPerson, phone, city }),
       })
       const data = await res.json()
       if (data.success && data.data) {
@@ -115,7 +89,6 @@ export default function VendorsPage() {
   const openEditModal = (v: VendorRecord) => {
     setEditingVendor(v)
     setName(v.name || '')
-    setCategory(v.category || 'Industrial Chemicals & Minerals')
     setContactPerson(v.contactPerson || '')
     setPhone(v.phone || '')
     setCity(v.city || '')
@@ -130,7 +103,7 @@ export default function VendorsPage() {
       const res = await fetch(`/api/vendors/${editingVendor.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category, contactPerson, phone, city }),
+        body: JSON.stringify({ name, contactPerson, phone, city }),
       })
       const data = await res.json()
       if (data.success && data.data) {
@@ -191,11 +164,10 @@ export default function VendorsPage() {
     const exportItems = getExportVendors()
     exportToPDF({
       title: 'Vendors & Suppliers Directory Report',
-      headers: ['Vendor Code', 'Company Name', 'Supply Category', 'Key Contact', 'Phone', 'Location'],
+      headers: ['Vendor Code', 'Company Name', 'Key Contact', 'Phone', 'Location'],
       data: exportItems.map((v) => [
         v.vendorCode || v.id,
         v.name,
-        v.category,
         v.contactPerson,
         v.phone,
         v.city || '-',
@@ -208,11 +180,10 @@ export default function VendorsPage() {
     const exportItems = getExportVendors()
     exportToExcel({
       filename: 'Vendors_Directory',
-      headers: ['Vendor Code', 'Company Name', 'Supply Category', 'Key Contact', 'Phone', 'City'],
+      headers: ['Vendor Code', 'Company Name', 'Key Contact', 'Phone', 'City'],
       rows: exportItems.map((v) => [
         v.vendorCode || v.id,
         v.name,
-        v.category,
         v.contactPerson,
         v.phone,
         v.city || '-',
@@ -224,11 +195,10 @@ export default function VendorsPage() {
     const exportItems = getExportVendors()
     printReport({
       title: 'Vendors & Suppliers Directory Report',
-      headers: ['Vendor Code', 'Company Name', 'Supply Category', 'Key Contact', 'Phone', 'Location'],
+      headers: ['Vendor Code', 'Company Name', 'Key Contact', 'Phone', 'Location'],
       data: exportItems.map((v) => [
         v.vendorCode || v.id,
         v.name,
-        v.category,
         v.contactPerson,
         v.phone,
         v.city || '-',
@@ -242,7 +212,7 @@ export default function VendorsPage() {
       `🚚 *Vendors & Suppliers Directory*\nTotal Vendors: ${exportItems.length}\n\n*Recent Suppliers:*\n` +
       exportItems
         .slice(0, 10)
-        .map((v) => `• ${v.name} (${v.category}) | Contact: ${v.contactPerson} (${v.phone})`)
+        .map((v) => `• ${v.name} | Contact: ${v.contactPerson} (${v.phone})`)
         .join('\n')
     shareOnWhatsApp(summary)
   }
@@ -322,7 +292,6 @@ export default function VendorsPage() {
                   </th>
                   <th className="py-3 px-4">Vendor ID</th>
                   <th className="py-3 px-4">Company Name</th>
-                  <th className="py-3 px-4">Supply Category</th>
                   <th className="py-3 px-4">Key Contact</th>
                   <th className="py-3 px-4">Location</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -343,11 +312,6 @@ export default function VendorsPage() {
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{v.name}</div>
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-amber-900">
-                      <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        {v.category}
-                      </span>
-                    </td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-900">{v.contactPerson}</div>
                       <div className="text-[11px] text-slate-500">{v.phone}</div>
@@ -360,7 +324,7 @@ export default function VendorsPage() {
                     <td className="py-3.5 px-4 text-right space-x-1">
                       <button
                         onClick={() => {
-                          const msg = `🚚 *Vendor Contact Details*\nVendor Code: ${v.vendorCode || v.id}\nCompany: ${v.name}\nCategory: ${v.category}\nContact Person: ${v.contactPerson}\nPhone: ${v.phone}\nLocation: ${v.city || '-'}`
+                          const msg = `🚚 *Vendor Contact Details*\nVendor Code: ${v.vendorCode || v.id}\nCompany: ${v.name}\nContact Person: ${v.contactPerson}\nPhone: ${v.phone}\nLocation: ${v.city || '-'}`
                           shareOnWhatsApp(msg, v.phone)
                         }}
                         className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
@@ -422,20 +386,6 @@ export default function VendorsPage() {
                   onChange={(e) => setName(e.target.value)}
                   className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
                 />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Supply Category *</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 bg-white"
-                >
-                  <option value="Industrial Chemicals & Minerals">Industrial Chemicals & Minerals</option>
-                  <option value="Agricultural Commodities">Agricultural Commodities</option>
-                  <option value="Metals & Hardware">Metals & Hardware</option>
-                  <option value="Packaging & Logistics">Packaging & Logistics</option>
-                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

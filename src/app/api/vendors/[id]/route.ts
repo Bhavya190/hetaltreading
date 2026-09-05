@@ -16,7 +16,6 @@ export async function PUT(
         where: { id },
         data: {
           name: body.name,
-          category: body.category || 'Industrial Chemicals & Minerals',
           contactPerson: body.contactPerson,
           phone: body.phone,
           city: body.city || '',
@@ -28,7 +27,6 @@ export async function PUT(
         where: { id },
         update: {
           name: body.name,
-          category: body.category || 'Industrial Chemicals & Minerals',
           contactPerson: body.contactPerson,
           phone: body.phone,
           city: body.city || '',
@@ -38,7 +36,6 @@ export async function PUT(
           id,
           vendorCode: id,
           name: body.name,
-          category: body.category || 'Industrial Chemicals & Minerals',
           contactPerson: body.contactPerson,
           phone: body.phone,
           city: body.city || '',
