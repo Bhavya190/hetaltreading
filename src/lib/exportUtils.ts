@@ -549,3 +549,394 @@ export function shareOnWhatsApp(message: string, phoneNumber?: string) {
   window.open(url, '_blank')
 }
 
+export interface CustomerStatementExportParams {
+  customerName: string
+  mobileNumber: string
+  billingAddress: string
+  creditLimitDays: number
+  totalDebtAmount: number
+  totalPaidAmount: number
+  balanceDue: number
+  transactions: {
+    billNumber: string
+    date: string
+    itemsSummary: string
+    billAmount: number
+    paidAmount: number
+    balanceAmount: number
+    paymentStatus: string
+  }[]
+  payments: {
+    date: string
+    paymentType: string
+    amount: number
+    appliedBillNo?: string | null
+    note?: string | null
+  }[]
+  bankDetails?: BankDetails
+  logoUrl?: string
+}
+
+export function printCustomerStatement(params: CustomerStatementExportParams) {
+  let bankDetails: BankDetails = getSavedBankDetails()
+  if (params.bankDetails) {
+    bankDetails = { ...bankDetails, ...params.bankDetails }
+  }
+  const logoUrlPath = params.logoUrl || '/Hetal-Treading-Logo-bg-removed.png'
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Please allow popups to print/export PDF reports.')
+    return
+  }
+
+  const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}${logoUrlPath}` : logoUrlPath
+  const upiUrl = `upi://pay?pa=${encodeURIComponent(bankDetails.upiId || 'hetaltrading@upi')}&pn=${encodeURIComponent(bankDetails.accountName || 'Hetal Trading Company')}&cu=INR`
+  const qrCodeUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUrl)}&size=200&margin=1`
+
+  const currentDate = new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  // Bills HTML Rows
+  const billsRowsHtml = (params.transactions || []).map((t, i) => `
+    <tr style="background-color: ${i % 2 === 0 ? '#ffffff' : '#f8fafc'}; font-size: 11px;">
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; color: #92400e;">${t.billNumber}</td>
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; color: #475569;">${t.date ? t.date.split('T')[0] : ''}</td>
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">${t.itemsSummary}</td>
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold;">₹ ${(t.billAmount || 0).toLocaleString()}</td>
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; color: #15803d;">₹ ${(t.paidAmount || 0).toLocaleString()}</td>
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; color: #b91c1c;">₹ ${(t.balanceAmount || 0).toLocaleString()}</td>
+      <td style="padding: 7px 10px; border: 1px solid #e2e8f0; text-align: center; font-weight: bold; font-size: 10px;">
+        <span style="padding: 2px 6px; border-radius: 4px; background: ${t.paymentStatus === 'PAID' ? '#dcfce7' : t.paymentStatus === 'PARTIAL' ? '#fef3c7' : '#ffe4e6'}; color: ${t.paymentStatus === 'PAID' ? '#166534' : t.paymentStatus === 'PARTIAL' ? '#92400e' : '#991b1b'};">
+          ${t.paymentStatus}
+        </span>
+      </td>
+    </tr>
+  `).join('')
+
+  // Payments HTML Rows
+  const paymentsRowsHtml = (params.payments || []).map((p, i) => {
+    const payTypeLabel = p.paymentType === 'CASH' ? 'Cash' : p.paymentType === 'CHEQUE' ? 'Cheque' : p.paymentType === 'UPI' ? 'UPI' : 'Bank Transfer'
+    const dateStr = p.date ? new Date(p.date).toISOString().split('T')[0] : ''
+    return `
+      <tr style="background-color: ${i % 2 === 0 ? '#ffffff' : '#f8fafc'}; font-size: 11px;">
+        <td style="padding: 7px 10px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; color: #475569;">${dateStr}</td>
+        <td style="padding: 7px 10px; border: 1px solid #e2e8f0;">
+          <span style="padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; background: #dcfce7; color: #166534;">${payTypeLabel}</span>
+        </td>
+        <td style="padding: 7px 10px; border: 1px solid #e2e8f0; font-family: monospace; font-weight: bold; color: #15803d; font-size: 11.5px;">₹ ${(p.amount || 0).toLocaleString()}</td>
+        <td style="padding: 7px 10px; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 500;">${p.appliedBillNo || 'General Credit'}</td>
+        <td style="padding: 7px 10px; border: 1px solid #e2e8f0; color: #64748b;">${p.note || '-'}</td>
+      </tr>
+    `
+  }).join('')
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Ledger Statement - ${params.customerName}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          * { box-sizing: border-box; }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            color: #0f172a;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          body { padding: 20px 0; }
+          .page-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 24px 28px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          }
+          .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #d97706;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+          }
+          .header-left { display: flex; align-items: center; gap: 14px; }
+          .company-logo { height: 50px; width: auto; max-width: 150px; object-fit: contain; }
+          .company-info h1 { font-size: 17px; font-weight: 800; color: #78350f; margin: 0; letter-spacing: 0.3px; text-transform: uppercase; }
+          .company-info p { font-size: 10.5px; color: #64748b; margin: 2px 0 0 0; font-weight: 500; }
+          .report-badge { display: inline-block; margin-top: 3px; font-size: 11px; font-weight: 700; color: #92400e; background-color: #fef3c7; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde68a; }
+          .meta-box { text-align: right; font-size: 10.5px; color: #475569; line-height: 1.5; }
+          
+          .customer-card {
+            background-color: #0f172a;
+            color: #ffffff;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+          }
+          .cust-name { font-size: 15px; font-weight: 800; color: #ffffff; margin-bottom: 4px; }
+          .cust-detail { font-size: 11px; color: #cbd5e1; margin-top: 2px; }
+
+          .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+          }
+          .sum-card {
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+          }
+          .sum-title { font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+          .sum-val { font-size: 15px; font-weight: 800; font-family: monospace; margin-top: 2px; }
+
+          .section-heading {
+            font-size: 12px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 16px 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          th { padding: 8px 10px; border: 1px solid #cbd5e1; background-color: #0f172a; color: #ffffff; text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+          td { padding: 7px 10px; border: 1px solid #e2e8f0; color: #1e293b; font-size: 11px; }
+
+          .payment-section {
+            margin-top: 20px;
+            padding: 12px 16px;
+            background-color: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            page-break-inside: avoid;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          .bank-details-col { flex: 1; }
+          .payment-title { font-size: 11.5px; font-weight: 800; color: #92400e; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.3px; }
+          .bank-grid { display: grid; grid-template-columns: 100px 1fr; gap: 4px 10px; font-size: 11px; }
+          .bank-label { color: #78350f; font-weight: 600; }
+          .bank-val { color: #0f172a; font-weight: 700; }
+          .mono-val { font-family: monospace; font-size: 11.5px; }
+          .upi-qr-col { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-left: 16px; border-left: 1px dashed #fde68a; min-width: 140px; text-align: center; }
+          .qr-card { background: #ffffff; padding: 6px; border-radius: 6px; border: 1px solid #fcd34d; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+          .qr-card img { width: 90px; height: 90px; display: block; margin: 0 auto; }
+          .upi-id-badge { margin-top: 5px; font-size: 10px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 2px 6px; border-radius: 4px; font-family: monospace; border: 1px solid #fde68a; }
+          .payment-note { margin-top: 5px; font-size: 9px; color: #78350f; font-style: italic; max-width: 140px; line-height: 1.3; }
+          .footer { margin-top: 18px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 9.5px; color: #94a3b8; text-align: center; }
+
+          @media print {
+            body { padding: 0; margin: 0; background: #ffffff; }
+            .page-container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+            @page { size: A4 portrait; margin: 10mm; }
+            .payment-section { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page-container">
+          <div class="header-container">
+            <div class="header-left">
+              <img src="${logoUrl}" alt="Hetal Trading Company Logo" class="company-logo" />
+              <div class="company-info">
+                <h1>Hetal Trading Company</h1>
+                <p>Industrial Chemical Procurement & Sales Ledger</p>
+                <div class="report-badge">CUSTOMER DEBT & PAYMENT STATEMENT</div>
+              </div>
+            </div>
+            <div class="meta-box">
+              <div><strong>Statement Date:</strong> ${currentDate}</div>
+            </div>
+          </div>
+
+          <!-- Customer Card -->
+          <div class="customer-card">
+            <div>
+              <div class="cust-name">${params.customerName}</div>
+              <div class="cust-detail">📞 Mobile: <strong>${params.mobileNumber}</strong> | ⏱ Credit Terms: <strong>${params.creditLimitDays} Days</strong></div>
+              <div class="cust-detail">📍 Address: ${params.billingAddress}</div>
+            </div>
+          </div>
+
+          <!-- Financial Summary Cards -->
+          <div class="summary-grid">
+            <div class="sum-card" style="border-left: 4px solid #475569;">
+              <div class="sum-title">Total Credit Debt</div>
+              <div class="sum-val" style="color: #0f172a;">₹ ${(params.totalDebtAmount || 0).toLocaleString()}</div>
+            </div>
+            <div class="sum-card" style="border-left: 4px solid #16a34a; background-color: #f0fdf4;">
+              <div class="sum-title" style="color: #15803d;">Total Received Payments</div>
+              <div class="sum-val" style="color: #15803d;">₹ ${(params.totalPaidAmount || 0).toLocaleString()}</div>
+            </div>
+            <div class="sum-card" style="border-left: 4px solid #dc2626; background-color: #fef2f2;">
+              <div class="sum-title" style="color: #b91c1c;">Outstanding Udhaar Due</div>
+              <div class="sum-val" style="color: #b91c1c;">₹ ${(params.balanceDue || 0).toLocaleString()}</div>
+            </div>
+          </div>
+
+          <!-- Section 1: Bills Issued -->
+          <div class="section-heading">📑 1. Debt Bills & Invoices Issued (${(params.transactions || []).length})</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Bill No.</th>
+                <th>Date</th>
+                <th>Product / Items Summary</th>
+                <th>Bill Total</th>
+                <th>Paid Amount</th>
+                <th>Balance Due</th>
+                <th style="text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${billsRowsHtml || `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 12px;">No debt bills issued.</td></tr>`}
+            </tbody>
+          </table>
+
+          <!-- Section 2: Payments Received Logs -->
+          <div class="section-heading">💵 2. Received Payment History Logs (${(params.payments || []).length})</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Payment Type</th>
+                <th>Amount Received</th>
+                <th>Bill Reduction Details</th>
+                <th>Summary / Extra Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${paymentsRowsHtml || `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 12px;">No payment receipt logs recorded yet.</td></tr>`}
+            </tbody>
+          </table>
+
+          <!-- Payment Options Footer -->
+          <div class="payment-section">
+            <div class="bank-details-col">
+              <div class="payment-title">🏦 Direct Bank Transfer Details</div>
+              <div class="bank-grid">
+                <div class="bank-label">Account Holder:</div>
+                <div class="bank-val">${bankDetails.accountName}</div>
+                <div class="bank-label">Bank Name:</div>
+                <div class="bank-val">${bankDetails.bankName}</div>
+                <div class="bank-label">Account No:</div>
+                <div class="bank-val mono-val">${bankDetails.accountNumber}</div>
+                <div class="bank-label">IFSC Code:</div>
+                <div class="bank-val mono-val">${bankDetails.ifscCode}</div>
+                <div class="bank-label">Branch:</div>
+                <div class="bank-val">${bankDetails.branch}</div>
+              </div>
+            </div>
+
+            <div class="upi-qr-col">
+              <div class="payment-title" style="margin-bottom: 6px;">📲 Scan & Pay via UPI</div>
+              <div class="qr-card">
+                <img src="${qrCodeUrl}" alt="Scan QR Code to Pay via UPI" />
+              </div>
+              <div class="upi-id-badge">${bankDetails.upiId}</div>
+              ${bankDetails.note ? `<div class="payment-note">${bankDetails.note}</div>` : ''}
+            </div>
+          </div>
+
+          <div class="footer">
+            Hetal Trading Company • Customer Ledger Statement • Computer Generated Document
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 500);
+          };
+        </script>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+}
+
+export function exportCustomerStatementExcel(params: CustomerStatementExportParams) {
+  const csvRows: string[] = []
+  csvRows.push(`"CUSTOMER DEBT & PAYMENT LEDGER STATEMENT"`)
+  csvRows.push(`"Customer Name:","${params.customerName.replace(/"/g, '""')}"`)
+  csvRows.push(`"Mobile Number:","${params.mobileNumber}"`)
+  csvRows.push(`"Billing Address:","${params.billingAddress.replace(/"/g, '""')}"`)
+  csvRows.push(`"Total Credit Debt:","₹ ${params.totalDebtAmount}"`)
+  csvRows.push(`"Total Received Payments:","₹ ${params.totalPaidAmount}"`)
+  csvRows.push(`"Outstanding Udhaar Due:","₹ ${params.balanceDue}"`)
+  csvRows.push(`""`)
+
+  csvRows.push(`"1. DEBT BILLS & INVOICES ISSUED"`)
+  csvRows.push(`"Bill No.","Date","Product / Items Summary","Bill Total (₹)","Paid Amount (₹)","Balance Due (₹)","Status"`)
+  ;(params.transactions || []).forEach((t) => {
+    csvRows.push([
+      `"${t.billNumber}"`,
+      `"${t.date ? t.date.split('T')[0] : ''}"`,
+      `"${(t.itemsSummary || '').replace(/"/g, '""')}"`,
+      `"${t.billAmount}"`,
+      `"${t.paidAmount}"`,
+      `"${t.balanceAmount}"`,
+      `"${t.paymentStatus}"`
+    ].join(','))
+  })
+
+  csvRows.push(`""`)
+  csvRows.push(`"2. RECEIVED PAYMENT HISTORY LOGS"`)
+  csvRows.push(`"Date","Payment Type","Amount Received (₹)","Bill Reduction Details","Summary / Extra Note"`)
+  ;(params.payments || []).forEach((p) => {
+    const dateStr = p.date ? new Date(p.date).toISOString().split('T')[0] : ''
+    csvRows.push([
+      `"${dateStr}"`,
+      `"${p.paymentType}"`,
+      `"${p.amount}"`,
+      `"${(p.appliedBillNo || '').replace(/"/g, '""')}"`,
+      `"${(p.note || '').replace(/"/g, '""')}"`
+    ].join(','))
+  })
+
+  const csvString = '\uFEFF' + csvRows.join('\r\n')
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', `Statement_${params.customerName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+export function shareCustomerStatementWhatsApp(params: CustomerStatementExportParams) {
+  const summaryText =
+    `📒 *Customer Statement - Hetal Trading Company*\n` +
+    `*Customer:* ${params.customerName}\n` +
+    `*Mobile:* ${params.mobileNumber}\n\n` +
+    `📊 *Financial Summary:*\n` +
+    `• Total Billed Debt: ₹${params.totalDebtAmount.toLocaleString()}\n` +
+    `• Total Paid / Cleared: ₹${params.totalPaidAmount.toLocaleString()}\n` +
+    `• *Outstanding Udhaar Due:* ₹${params.balanceDue.toLocaleString()}\n\n` +
+    `Please clear your outstanding balance of ₹${params.balanceDue.toLocaleString()} at your earliest. Thank you!`
+
+  shareOnWhatsApp(summaryText, params.mobileNumber)
+}
+
+

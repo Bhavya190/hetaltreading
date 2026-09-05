@@ -1,6 +1,42 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const rawParams = await params
+    const id = decodeURIComponent(rawParams.id)
+    const account = await (prisma as any).deptAccount.findUnique({
+      where: { id },
+      include: {
+        transactions: {
+          orderBy: { date: 'desc' },
+        },
+        payments: {
+          orderBy: { date: 'desc' },
+        },
+      },
+    })
+
+    if (!account) {
+      return NextResponse.json(
+        { success: false, error: 'Debt account not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: account })
+  } catch (error: any) {
+    console.error('Error fetching debt account by ID:', error)
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to fetch debt account' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

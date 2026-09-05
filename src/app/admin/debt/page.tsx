@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   BookOpen,
   Plus,
@@ -518,7 +519,14 @@ export default function DebtPage() {
                       className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
                   </td>
-                  <td className="p-4 font-bold text-slate-900">{acc.customerName}</td>
+                  <td className="p-4 font-bold text-slate-900">
+                    <Link
+                      href={`/admin/debt/${encodeURIComponent(acc.id)}`}
+                      className="hover:text-amber-700 hover:underline transition-colors"
+                    >
+                      {acc.customerName}
+                    </Link>
+                  </td>
                   <td className="p-4 font-mono text-slate-600">{acc.mobileNumber}</td>
                   <td className="p-4 font-mono font-bold text-slate-800">₹{(acc.totalDebtAmount || 0).toLocaleString()}</td>
                   <td className="p-4 font-mono font-bold text-emerald-700">₹{(acc.totalPaidAmount || 0).toLocaleString()}</td>
@@ -539,15 +547,12 @@ export default function DebtPage() {
                     >
                       <Share2 className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => {
-                        setSelectedCustomer(acc)
-                        setActiveTab('bills')
-                      }}
-                      className="px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold"
+                    <Link
+                      href={`/admin/debt/${encodeURIComponent(acc.id)}`}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-bold inline-block"
                     >
                       View Details
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}
