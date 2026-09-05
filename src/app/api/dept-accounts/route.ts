@@ -8,6 +8,9 @@ export async function GET() {
         transactions: {
           orderBy: { createdAt: 'desc' },
         },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     })

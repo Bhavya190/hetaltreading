@@ -21,6 +21,10 @@ import {
   Pencil,
   Trash2,
   Share2,
+  Wallet,
+  CreditCard,
+  Building,
+  Calendar,
 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
 import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
@@ -37,6 +41,17 @@ export interface DebtTransactionRecord {
   paymentStatus: 'PAID' | 'PARTIAL' | 'PENDING'
 }
 
+export interface DebtPaymentRecord {
+  id: string
+  deptAccountId: string
+  date: string
+  paymentType: 'CASH' | 'CHEQUE' | 'UPI' | 'BANK_TRANSFER'
+  amount: number
+  note?: string | null
+  appliedBillNo?: string | null
+  createdAt?: string
+}
+
 export interface DeptAccountRecord {
   id: string
   customerName: string
@@ -48,6 +63,7 @@ export interface DeptAccountRecord {
   balanceDue: number
   status: 'ACTIVE' | 'INACTIVE'
   transactions?: DebtTransactionRecord[]
+  payments?: DebtPaymentRecord[]
 }
 
 export default function DebtPage() {
@@ -62,12 +78,24 @@ export default function DebtPage() {
   const [startDate, setStartDate] = useState(todayStr)
   const [endDate, setEndDate] = useState(todayStr)
 
+  // Customer Drill-down Tab State: 'bills' | 'payments'
+  const [activeTab, setActiveTab] = useState<'bills' | 'payments'>('bills')
+
   // Modals
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
   const [editingAccount, setEditingAccount] = useState<DeptAccountRecord | null>(null)
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null)
   const [selectedCustomer, setSelectedCustomer] = useState<DeptAccountRecord | null>(null)
   const [showAddBillModal, setShowAddBillModal] = useState(false)
+
+  // Payment Receive Modal State
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentCustomerId, setPaymentCustomerId] = useState('')
+  const [paymentDate, setPaymentDate] = useState(todayStr)
+  const [paymentType, setPaymentType] = useState<'CASH' | 'CHEQUE' | 'UPI' | 'BANK_TRANSFER'>('CASH')
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentNote, setPaymentNote] = useState('')
+  const [paymentTargetBillNo, setPaymentTargetBillNo] = useState('')
 
   // Register Customer Form State
   const [customerName, setCustomerName] = useState('')
@@ -77,70 +105,10 @@ export default function DebtPage() {
 
   // Add Bill Form State
   const [billNumber, setBillNumber] = useState('')
-  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0])
+  const [billDate, setBillDate] = useState(todayStr)
   const [itemsSummary, setItemsSummary] = useState('')
   const [billAmount, setBillAmount] = useState('')
   const [paidAmount, setPaidAmount] = useState('0')
-
-  // Initial Sample Data Fallback
-  const SAMPLE_ACCOUNTS: DeptAccountRecord[] = [
-    {
-      id: 'DEBT - 01',
-      customerName: 'Rajesh Mehta (Mehta Chemical Industries)',
-      mobileNumber: '+91 98250 12345',
-      billingAddress: 'Plot 42, GIDC Industrial Area, Sachin, Surat - 394230',
-      creditLimitDays: 30,
-      totalDebtAmount: 75000,
-      totalPaidAmount: 30000,
-      balanceDue: 45000,
-      status: 'ACTIVE',
-      transactions: [
-        {
-          id: 'TXN-501',
-          billNumber: 'INV-2026-089',
-          date: '2026-08-25',
-          itemsSummary: '10 Metric Ton Soda Ash Dense @ ₹21,000/MT + GST',
-          billAmount: 50000,
-          paidAmount: 20000,
-          balanceAmount: 30000,
-          paymentStatus: 'PARTIAL',
-        },
-        {
-          id: 'TXN-502',
-          billNumber: 'INV-2026-094',
-          date: '2026-08-28',
-          itemsSummary: '500 Kg Refined Hydrated Lime @ ₹55/Kg',
-          billAmount: 25000,
-          paidAmount: 10000,
-          balanceAmount: 15000,
-          paymentStatus: 'PARTIAL',
-        },
-      ],
-    },
-    {
-      id: 'DEBT - 02',
-      customerName: 'Suresh Patel (Patel Agri Commodities)',
-      mobileNumber: '+91 99090 67890',
-      billingAddress: '102 Harmony Complex, Ring Road, Ahmedabad - 380009',
-      creditLimitDays: 45,
-      totalDebtAmount: 120000,
-      totalPaidAmount: 120000,
-      balanceDue: 0,
-      status: 'ACTIVE',
-      transactions: [
-        {
-          id: 'TXN-503',
-          billNumber: 'INV-2026-071',
-          date: '2026-08-10',
-          itemsSummary: '1,000 PP Woven Jumbo Bags @ ₹350/Piece',
-          billAmount: 120000,
-          paidAmount: 120000,
-          balanceAmount: 0,
-          paymentStatus: 'PAID',
-        },
-      ],
-    },
-  ]
 
   const fetchDeptAccounts = async () => {
     try {
@@ -149,6 +117,11 @@ export default function DebtPage() {
       const data = await res.json()
       if (data.success && Array.isArray(data.data)) {
         setDeptAccounts(data.data)
+        // If customer is selected, update selectedCustomer with fresh data
+        if (selectedCustomer) {
+          const fresh = data.data.find((a: DeptAccountRecord) => a.id === selectedCustomer.id)
+          if (fresh) setSelectedCustomer(fresh)
+        }
       } else {
         setDeptAccounts([])
       }
@@ -163,6 +136,18 @@ export default function DebtPage() {
   useEffect(() => {
     fetchDeptAccounts()
   }, [])
+
+  // Open Payment Receive Modal for specific customer or general
+  const handleOpenPaymentModal = (cust?: DeptAccountRecord) => {
+    const targetId = cust ? cust.id : deptAccounts[0]?.id || ''
+    setPaymentCustomerId(targetId)
+    setPaymentDate(todayStr)
+    setPaymentType('CASH')
+    setPaymentAmount('')
+    setPaymentNote('')
+    setPaymentTargetBillNo('')
+    setShowPaymentModal(true)
+  }
 
   // Register New Debt Customer Account
   const handleRegisterCustomer = async (e: React.FormEvent) => {
@@ -191,41 +176,58 @@ export default function DebtPage() {
       if (data.success && data.data) {
         setDeptAccounts([data.data, ...deptAccounts])
       } else {
-        const newAcc: DeptAccountRecord = {
-          id: `DEBT - ${String(1 + deptAccounts.length).padStart(2, '0')}`,
-          customerName,
-          mobileNumber,
-          billingAddress,
-          creditLimitDays: finalDays,
-          totalDebtAmount: 0,
-          totalPaidAmount: 0,
-          balanceDue: 0,
-          status: 'ACTIVE',
-          transactions: [],
-        }
-        setDeptAccounts([newAcc, ...deptAccounts])
+        await fetchDeptAccounts()
       }
     } catch (err) {
       console.error('Error creating Dept customer account:', err)
-      const newAcc: DeptAccountRecord = {
-        id: `DEBT - ${String(1 + deptAccounts.length).padStart(2, '0')}`,
-        customerName,
-        mobileNumber,
-        billingAddress,
-        creditLimitDays: finalDays,
-        totalDebtAmount: 0,
-        totalPaidAmount: 0,
-        balanceDue: 0,
-        status: 'ACTIVE',
-        transactions: [],
-      }
-      setDeptAccounts([newAcc, ...deptAccounts])
+      await fetchDeptAccounts()
     } finally {
       setSaving(false)
-      setDeletingAccountId(null)
+      setShowAddCustomerModal(false)
+      setCustomerName('')
+      setMobileNumber('')
+      setBillingAddress('')
+      setCreditLimitDays('30')
     }
   }
 
+  // Record Received Payment
+  const handleReceivePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!paymentCustomerId || !paymentAmount || parseFloat(paymentAmount) <= 0) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/dept-accounts/${paymentCustomerId}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: paymentDate,
+          paymentType,
+          amount: parseFloat(paymentAmount),
+          note: paymentNote,
+          targetBillNo: paymentTargetBillNo || undefined,
+        }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        setShowPaymentModal(false)
+        await fetchDeptAccounts()
+        // Switch view to payments log tab if customer drilldown is open
+        setActiveTab('payments')
+      } else {
+        alert(data.error || 'Failed to record payment')
+      }
+    } catch (err) {
+      console.error('Error submitting payment:', err)
+      alert('An error occurred while submitting the payment.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Add Debt Bill Transaction
   const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCustomer) return
@@ -398,16 +400,27 @@ export default function DebtPage() {
     shareOnWhatsApp(summary)
   }
 
+  // Selected customer helper for active payment target
+  const currentPaymentCustomer = deptAccounts.find((a) => a.id === paymentCustomerId)
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold text-slate-900">Udhaar / Debt Management</h1>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setShowAddCustomerModal(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-colors"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleOpenPaymentModal()}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2"
           >
-            + Register Customer
+            <Wallet className="w-4 h-4" />
+            <span>+ Receive Payment</span>
+          </button>
+          <button
+            onClick={() => setShowAddCustomerModal(true)}
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Register Customer</span>
           </button>
         </div>
       </div>
@@ -462,47 +475,88 @@ export default function DebtPage() {
             </div>
           </div>
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="p-4 w-10 text-center">
-                <input
-                  type="checkbox"
-                  checked={filteredAccounts.length > 0 && selectedIds.length === filteredAccounts.length}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                />
-              </th>
-              <th className="p-4 font-bold text-slate-700">Customer</th>
-              <th className="p-4 font-bold text-slate-700">Mobile</th>
-              <th className="p-4 font-bold text-slate-700">Balance Due</th>
-              <th className="p-4 font-bold text-slate-700 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredAccounts.map((acc) => (
-              <tr key={acc.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.includes(acc.id) ? 'bg-amber-50/40' : ''}`}>
-                <td className="p-4 text-center">
+
+        {loading ? (
+          <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+            <p className="text-xs font-medium">Loading debt accounts & ledger...</p>
+          </div>
+        ) : filteredAccounts.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 space-y-2">
+            <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
+            <p className="font-bold text-slate-700">No Debt Customers Found</p>
+            <p className="text-xs">Register new debt customers or adjust filter terms.</p>
+          </div>
+        ) : (
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="p-4 w-10 text-center">
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(acc.id)}
-                    onChange={() => handleToggleSelect(acc.id)}
+                    checked={filteredAccounts.length > 0 && selectedIds.length === filteredAccounts.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
                     className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                   />
-                </td>
-                <td className="p-4 font-bold text-slate-900">{acc.customerName}</td>
-                <td className="p-4 font-mono text-slate-600">{acc.mobileNumber}</td>
-                <td className="p-4 font-mono font-bold text-rose-700">₹{acc.balanceDue.toLocaleString()}</td>
-                <td className="p-4 text-right flex justify-end gap-2">
-                  <button onClick={() => shareOnWhatsApp(acc.mobileNumber, `Hi ${acc.customerName}, your current outstanding balance is ₹${acc.balanceDue}. Please clear it at your earliest.`)} className="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"><Share2 className="w-4 h-4" /></button>
-                  <button onClick={() => setSelectedCustomer(acc)} className="px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold">View</button>
-                </td>
+                </th>
+                <th className="p-4 font-bold text-slate-700">Customer</th>
+                <th className="p-4 font-bold text-slate-700">Mobile</th>
+                <th className="p-4 font-bold text-slate-700">Total Billed</th>
+                <th className="p-4 font-bold text-slate-700">Total Received</th>
+                <th className="p-4 font-bold text-slate-700">Balance Due</th>
+                <th className="p-4 font-bold text-slate-700 text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredAccounts.map((acc) => (
+                <tr key={acc.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.includes(acc.id) ? 'bg-amber-50/40' : ''}`}>
+                  <td className="p-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(acc.id)}
+                      onChange={() => handleToggleSelect(acc.id)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                  </td>
+                  <td className="p-4 font-bold text-slate-900">{acc.customerName}</td>
+                  <td className="p-4 font-mono text-slate-600">{acc.mobileNumber}</td>
+                  <td className="p-4 font-mono font-bold text-slate-800">₹{(acc.totalDebtAmount || 0).toLocaleString()}</td>
+                  <td className="p-4 font-mono font-bold text-emerald-700">₹{(acc.totalPaidAmount || 0).toLocaleString()}</td>
+                  <td className="p-4 font-mono font-bold text-rose-700">₹{(acc.balanceDue || 0).toLocaleString()}</td>
+                  <td className="p-4 text-right flex justify-end gap-2">
+                    <button
+                      onClick={() => handleOpenPaymentModal(acc)}
+                      title="Receive Payment"
+                      className="px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>Pay</span>
+                    </button>
+                    <button
+                      onClick={() => shareOnWhatsApp(acc.mobileNumber, `Hi ${acc.customerName}, your current outstanding balance is ₹${acc.balanceDue}. Please clear it at your earliest.`)}
+                      className="p-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                      title="Share Outstanding on WhatsApp"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCustomer(acc)
+                        setActiveTab('bills')
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold"
+                    >
+                      View Details
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
+      {/* Delete Account Modal */}
       {deletingAccountId && (
         <div className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-2xl w-80 shadow-2xl">
@@ -527,15 +581,258 @@ export default function DebtPage() {
         </div>
       )}
 
-      {/* Modal 2: Selected Customer Bills & Sales Details View */}
+      {/* Modal: Register Customer */}
+      {showAddCustomerModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-base text-slate-900">Register New Debt Customer</h3>
+              <button onClick={() => setShowAddCustomerModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterCustomer} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Customer / Business Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rajesh Mehta (Mehta Chemical Industries)"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Mobile Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="+91 98250 12345"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Credit Terms (Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="30"
+                    value={creditLimitDays}
+                    onChange={(e) => setCreditLimitDays(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Billing Address <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  placeholder="Plot 42, GIDC Industrial Area..."
+                  value={billingAddress}
+                  onChange={(e) => setBillingAddress(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 resize-none"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomerModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="btn-gold px-5 py-2 shadow-sm font-bold flex items-center gap-2 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save Customer</span>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: PAYMENT RECEIVE FORM */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-60 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">Payment Receive Form</h3>
+                  <p className="text-[11px] text-slate-500">Record payments received from debt customer</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReceivePaymentSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                {/* 1. Date */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    1. Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-600 font-mono"
+                  />
+                </div>
+
+                {/* 2. Customer Name Select */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    2. Customer Name <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={paymentCustomerId}
+                    onChange={(e) => {
+                      setPaymentCustomerId(e.target.value)
+                      setPaymentTargetBillNo('')
+                    }}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-600 bg-white font-medium"
+                  >
+                    <option value="" disabled>-- Select Customer --</option>
+                    {deptAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.customerName} (Due: ₹{acc.balanceDue.toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* 3. Payment Type Select */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    3. Payment Type <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={paymentType}
+                    onChange={(e) => setPaymentType(e.target.value as any)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-600 bg-white font-medium"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="UPI">UPI</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                  </select>
+                </div>
+
+                {/* 4. Amount Received */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    4. Amount Received (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    min="1"
+                    placeholder="e.g. 15000"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-600 font-mono font-bold text-emerald-700"
+                  />
+                </div>
+              </div>
+
+              {/* Target Bill (Optional) */}
+              {currentPaymentCustomer && currentPaymentCustomer.transactions && currentPaymentCustomer.transactions.length > 0 && (
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Target Bill to Reduce Balance (Optional)
+                  </label>
+                  <select
+                    value={paymentTargetBillNo}
+                    onChange={(e) => setPaymentTargetBillNo(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-600 bg-white font-medium"
+                  >
+                    <option value="">Auto-allocate across oldest unpaid bills (FIFO)</option>
+                    {currentPaymentCustomer.transactions
+                      .filter((t) => t.balanceAmount > 0 || t.paymentStatus !== 'PAID')
+                      .map((t) => (
+                        <option key={t.id} value={t.billNumber}>
+                          Bill #{t.billNumber} ({t.date ? t.date.split('T')[0] : ''}) - Balance Due: ₹{t.balanceAmount.toLocaleString()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* 5. Summary / Extra Note */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  5. Summary / Extra Note
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Enter transaction reference, cheque no., or note..."
+                  value={paymentNote}
+                  onChange={(e) => setPaymentNote(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-600 resize-none"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2.5 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Confirm & Receive Payment</span>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Customer Drill-down Bills List & Payment Logs View */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl overflow-hidden">
             {/* Customer Detail Header */}
             <div className="p-6 border-b border-slate-200 bg-slate-900 text-white flex items-start justify-between">
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 text-amber-400 text-[10px] font-extrabold uppercase tracking-wider bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                  <span>Account ID: DEBT - {String(Math.max(0, deptAccounts.findIndex(a => a.id === selectedCustomer.id)) + 1).padStart(2, '0')}</span>
+                  <span>Account ID: {selectedCustomer.id}</span>
                 </div>
                 <h2 className="text-xl font-extrabold text-white">{selectedCustomer.customerName}</h2>
                 <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1">
@@ -547,112 +844,243 @@ export default function DebtPage() {
                     <Clock className="w-3.5 h-3.5 text-slate-400" />
                     <span>Credit Terms: {selectedCustomer.creditLimitDays} Days</span>
                   </div>
+                  <div className="flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{selectedCustomer.billingAddress}</span>
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenPaymentModal(selectedCustomer)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>+ Receive Payment</span>
+                </button>
+                <button
+                  onClick={() => setSelectedCustomer(null)}
+                  className="text-slate-400 hover:text-white p-1.5 rounded-lg bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Financial Balance Summary Bar */}
             <div className="bg-slate-50 p-4 border-b border-slate-200 grid grid-cols-3 gap-4 text-xs">
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
                 <div className="text-slate-500 font-bold">Total Credit Debt</div>
-                <div className="font-mono font-extrabold text-slate-900 text-sm">
-                  ₹ {selectedCustomer.totalDebtAmount ? selectedCustomer.totalDebtAmount.toLocaleString() : 0}
+                <div className="font-mono font-extrabold text-slate-900 text-base">
+                  ₹ {(selectedCustomer.totalDebtAmount || 0).toLocaleString()}
                 </div>
               </div>
-              <div className="space-y-0.5">
-                <div className="text-emerald-700 font-bold">Total Paid / Cleared</div>
-                <div className="font-mono font-extrabold text-emerald-700 text-sm">
-                  ₹ {selectedCustomer.totalPaidAmount ? selectedCustomer.totalPaidAmount.toLocaleString() : 0}
+              <div className="space-y-0.5 bg-emerald-50/50 p-3 rounded-xl border border-emerald-200/80 shadow-2xs">
+                <div className="text-emerald-700 font-bold">Total Received Payments</div>
+                <div className="font-mono font-extrabold text-emerald-700 text-base">
+                  ₹ {(selectedCustomer.totalPaidAmount || 0).toLocaleString()}
                 </div>
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 bg-rose-50/50 p-3 rounded-xl border border-rose-200/80 shadow-2xs">
                 <div className="text-rose-700 font-bold">Outstanding Udhaar Due</div>
-                <div className="font-mono font-extrabold text-rose-700 text-sm">
-                  ₹ {selectedCustomer.balanceDue ? selectedCustomer.balanceDue.toLocaleString() : 0}
+                <div className="font-mono font-extrabold text-rose-700 text-base">
+                  ₹ {(selectedCustomer.balanceDue || 0).toLocaleString()}
                 </div>
               </div>
             </div>
 
-            {/* Content Body: Bills & Sales Transactions */}
-            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-amber-700" />
-                  <span>Bills & Sales Transactions ({selectedCustomer.transactions?.length || 0})</span>
-                </h3>
-                <button
-                  onClick={() => setShowAddBillModal(true)}
-                  className="btn-gold py-1.5 px-3 text-xs font-bold shadow-xs flex items-center gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Debt Bill / Sale</span>
-                </button>
-              </div>
+            {/* Navigation Tabs */}
+            <div className="flex border-b border-slate-200 bg-slate-100/60 px-6 gap-2 pt-2">
+              <button
+                onClick={() => setActiveTab('bills')}
+                className={`px-4 py-2.5 font-extrabold text-xs rounded-t-xl transition-colors flex items-center gap-2 border-b-2 ${
+                  activeTab === 'bills'
+                    ? 'bg-white text-slate-900 border-amber-600 shadow-2xs'
+                    : 'text-slate-600 border-transparent hover:text-slate-900'
+                }`}
+              >
+                <Receipt className="w-4 h-4 text-amber-700" />
+                <span>Debt Bills & Invoices ({selectedCustomer.transactions?.length || 0})</span>
+              </button>
 
-              {!selectedCustomer.transactions || selectedCustomer.transactions.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <Receipt className="w-8 h-8 text-slate-400 mx-auto" />
-                  <div className="font-bold text-slate-800">No Debt Bills Issued Yet</div>
-                  <p className="text-[11px] text-slate-500">
-                    Click <strong>"Add Debt Bill / Sale"</strong> to record products issued on credit to this customer.
-                  </p>
+              <button
+                onClick={() => setActiveTab('payments')}
+                className={`px-4 py-2.5 font-extrabold text-xs rounded-t-xl transition-colors flex items-center gap-2 border-b-2 ${
+                  activeTab === 'payments'
+                    ? 'bg-white text-slate-900 border-emerald-600 shadow-2xs'
+                    : 'text-slate-600 border-transparent hover:text-slate-900'
+                }`}
+              >
+                <Wallet className="w-4 h-4 text-emerald-700" />
+                <span>Payment Received Logs ({selectedCustomer.payments?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              {activeTab === 'bills' ? (
+                /* TAB 1: Bills & Invoices */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-extrabold text-sm text-slate-900">Bills Issued on Debt</h3>
+                    <button
+                      onClick={() => setShowAddBillModal(true)}
+                      className="btn-gold py-1.5 px-3 text-xs font-bold shadow-xs flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Debt Bill / Sale</span>
+                    </button>
+                  </div>
+
+                  {!selectedCustomer.transactions || selectedCustomer.transactions.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                      <Receipt className="w-8 h-8 text-slate-400 mx-auto" />
+                      <div className="font-bold text-slate-800">No Debt Bills Issued Yet</div>
+                      <p className="text-[11px] text-slate-500">
+                        Click <strong>"Add Debt Bill / Sale"</strong> to record products issued on credit to this customer.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                            <th className="py-2.5 px-3">Bill No.</th>
+                            <th className="py-2.5 px-3">Date</th>
+                            <th className="py-2.5 px-3">Product / Items Summary</th>
+                            <th className="py-2.5 px-3">Bill Total</th>
+                            <th className="py-2.5 px-3">Paid Amount</th>
+                            <th className="py-2.5 px-3">Balance Due</th>
+                            <th className="py-2.5 px-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 text-slate-800">
+                          {selectedCustomer.transactions.map((txn) => (
+                            <tr key={txn.id} className="hover:bg-slate-50">
+                              <td className="py-3 px-3 font-mono font-bold text-amber-900">{txn.billNumber}</td>
+                              <td className="py-3 px-3 text-slate-600">{txn.date ? txn.date.split('T')[0] : ''}</td>
+                              <td className="py-3 px-3 font-semibold text-slate-900">{txn.itemsSummary}</td>
+                              <td className="py-3 px-3 font-mono font-bold text-slate-900">
+                                ₹ {(txn.billAmount || 0).toLocaleString()}
+                              </td>
+                              <td className="py-3 px-3 font-mono text-emerald-700 font-bold">
+                                ₹ {(txn.paidAmount || 0).toLocaleString()}
+                              </td>
+                              <td className="py-3 px-3 font-mono font-bold text-rose-700">
+                                ₹ {(txn.balanceAmount || 0).toLocaleString()}
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                {txn.paymentStatus === 'PAID' && (
+                                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                    PAID
+                                  </span>
+                                )}
+                                {txn.paymentStatus === 'PARTIAL' && (
+                                  <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                    PARTIAL
+                                  </span>
+                                )}
+                                {txn.paymentStatus === 'PENDING' && (
+                                  <span className="bg-rose-100 text-rose-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                    PENDING
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-200">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
-                        <th className="py-2.5 px-3">Bill No.</th>
-                        <th className="py-2.5 px-3">Date</th>
-                        <th className="py-2.5 px-3">Product / Items Summary</th>
-                        <th className="py-2.5 px-3">Bill Total</th>
-                        <th className="py-2.5 px-3">Paid Amount</th>
-                        <th className="py-2.5 px-3">Balance Due</th>
-                        <th className="py-2.5 px-3 text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 text-slate-800">
-                      {selectedCustomer.transactions.map((txn) => (
-                        <tr key={txn.id} className="hover:bg-slate-50">
-                          <td className="py-3 px-3 font-mono font-bold text-amber-900">{txn.billNumber}</td>
-                          <td className="py-3 px-3 text-slate-600">{txn.date}</td>
-                          <td className="py-3 px-3 font-semibold text-slate-900">{txn.itemsSummary}</td>
-                          <td className="py-3 px-3 font-mono font-bold text-slate-900">
-                            ₹ {txn.billAmount ? txn.billAmount.toLocaleString() : 0}
-                          </td>
-                          <td className="py-3 px-3 font-mono text-emerald-700 font-bold">
-                            ₹ {txn.paidAmount ? txn.paidAmount.toLocaleString() : 0}
-                          </td>
-                          <td className="py-3 px-3 font-mono font-bold text-rose-700">
-                            ₹ {txn.balanceAmount ? txn.balanceAmount.toLocaleString() : 0}
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            {txn.paymentStatus === 'PAID' && (
-                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                                PAID
-                              </span>
-                            )}
-                            {txn.paymentStatus === 'PARTIAL' && (
-                              <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                                PARTIAL
-                              </span>
-                            )}
-                            {txn.paymentStatus === 'PENDING' && (
-                              <span className="bg-rose-100 text-rose-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                                PENDING
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                /* TAB 2: Payment Received Logs */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-emerald-700" />
+                      <span>Received Payment Amount Logs</span>
+                    </h3>
+                    <button
+                      onClick={() => handleOpenPaymentModal(selectedCustomer)}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white py-1.5 px-3 text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>+ Record Received Payment</span>
+                    </button>
+                  </div>
+
+                  {!selectedCustomer.payments || selectedCustomer.payments.length === 0 ? (
+                    <div className="p-8 text-center bg-emerald-50/50 rounded-xl border border-emerald-200/80 space-y-2">
+                      <Wallet className="w-8 h-8 text-emerald-400 mx-auto" />
+                      <div className="font-bold text-slate-800">No Payment Receipt Logs Recorded Yet</div>
+                      <p className="text-[11px] text-slate-500">
+                        Click <strong>"+ Record Received Payment"</strong> to log cash, cheque, UPI, or bank transfer payments.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase tracking-wider border-b border-slate-200">
+                            <th className="py-2.5 px-3">Date</th>
+                            <th className="py-2.5 px-3">Payment Type</th>
+                            <th className="py-2.5 px-3">Amount Received</th>
+                            <th className="py-2.5 px-3">Bill Reduction Details</th>
+                            <th className="py-2.5 px-3">Summary / Extra Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 text-slate-800">
+                          {selectedCustomer.payments.map((p) => {
+                            const dateStr = p.date ? new Date(p.date).toISOString().split('T')[0] : ''
+                            const payTypeLabel =
+                              p.paymentType === 'CASH'
+                                ? 'Cash'
+                                : p.paymentType === 'CHEQUE'
+                                ? 'Cheque'
+                                : p.paymentType === 'UPI'
+                                ? 'UPI'
+                                : 'Bank Transfer'
+
+                            return (
+                              <tr key={p.id} className="hover:bg-slate-50">
+                                <td className="py-3 px-3 font-mono text-slate-700 font-semibold">{dateStr}</td>
+                                <td className="py-3 px-3">
+                                  <span className={`inline-flex items-center gap-1 font-bold text-[10px] px-2.5 py-0.5 rounded-full ${
+                                    p.paymentType === 'CASH'
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                      : p.paymentType === 'CHEQUE'
+                                      ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                      : p.paymentType === 'UPI'
+                                      ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                      : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  }`}>
+                                    {payTypeLabel}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 font-mono font-extrabold text-emerald-700 text-sm">
+                                  ₹ {(p.amount || 0).toLocaleString()}
+                                </td>
+                                <td className="py-3 px-3 font-medium text-slate-800">
+                                  {p.appliedBillNo ? (
+                                    <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-1 rounded text-slate-700 border border-slate-200">
+                                      <Receipt className="w-3 h-3 text-amber-700 shrink-0" />
+                                      <span>{p.appliedBillNo}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-italic">General Account Credit</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-slate-600">
+                                  {p.note || '-'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -670,7 +1098,7 @@ export default function DebtPage() {
         </div>
       )}
 
-      {/* Modal 3: Add Debt Bill Transaction for Customer */}
+      {/* Modal: Add Debt Bill Transaction */}
       {showAddBillModal && selectedCustomer && (
         <div className="fixed inset-0 z-60 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl">

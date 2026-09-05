@@ -116,6 +116,7 @@ model DeptAccount {
   balanceDue      Float             @default(0)
   status          CustomerStatus    @default(ACTIVE)
   transactions    DebtTransaction[]
+  payments        DebtPayment[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 }
@@ -131,6 +132,19 @@ model DebtTransaction {
   paidAmount    Float       @default(0)
   balanceAmount Float
   paymentStatus String      @default("PENDING")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model DebtPayment {
+  id            String      @id @default(cuid())
+  deptAccountId String
+  deptAccount   DeptAccount @relation(fields: [deptAccountId], references: [id], onDelete: Cascade)
+  date          DateTime    @default(now())
+  paymentType   String      @default("CASH") // CASH, CHEQUE, UPI, BANK_TRANSFER
+  amount        Float
+  note          String?
+  appliedBillNo String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
