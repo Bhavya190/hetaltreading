@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Building,
+  Eye,
 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
 import {
@@ -428,13 +429,22 @@ export default function CustomerDebtDetailPage() {
                   <th className="py-3 px-4">Bill Total</th>
                   <th className="py-3 px-4">Paid Amount</th>
                   <th className="py-3 px-4">Balance Due</th>
-                  <th className="py-3 px-4 text-right">Status</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800">
                 {customer.transactions.map((txn) => (
                   <tr key={txn.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-amber-900">{txn.billNumber}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-amber-900">
+                      <Link
+                        href={`/admin/bills/${encodeURIComponent(txn.billNumber)}`}
+                        className="hover:text-amber-700 hover:underline flex items-center gap-1"
+                        title="Click to view detailed bill & GST calculations"
+                      >
+                        <span>{txn.billNumber}</span>
+                      </Link>
+                    </td>
                     <td className="py-3 px-4 text-slate-600 font-mono">{txn.date ? txn.date.split('T')[0] : ''}</td>
                     <td className="py-3 px-4 font-semibold text-slate-900">{txn.itemsSummary}</td>
                     <td className="py-3 px-4 font-mono font-bold text-slate-900">
@@ -446,7 +456,7 @@ export default function CustomerDebtDetailPage() {
                     <td className="py-3 px-4 font-mono font-bold text-rose-700">
                       ₹ {(txn.balanceAmount || 0).toLocaleString()}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-center">
                       {txn.paymentStatus === 'PAID' && (
                         <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300">
                           PAID
@@ -462,6 +472,16 @@ export default function CustomerDebtDetailPage() {
                           PENDING
                         </span>
                       )}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <Link
+                        href={`/admin/bills/${encodeURIComponent(txn.billNumber)}`}
+                        className="inline-flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold px-2.5 py-1 rounded-lg text-xs transition-colors shadow-2xs"
+                        title="View bill details, GST calculations, print & export"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-amber-800" />
+                        <span>View Details</span>
+                      </Link>
                     </td>
                   </tr>
                 ))}

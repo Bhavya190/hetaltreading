@@ -130,6 +130,124 @@ export async function GET(
       })
     }
 
+    // 4. Try finding in DebtTransaction table
+    let debtTxn = await (prisma as any).debtTransaction.findUnique({
+      where: { id },
+      include: { deptAccount: true },
+    })
+
+    if (!debtTxn) {
+      debtTxn = await (prisma as any).debtTransaction.findFirst({
+        where: { billNumber: id },
+        include: { deptAccount: true },
+      })
+    }
+
+    if (debtTxn) {
+      // Check if matching dailySale exists by billNumber for full line items
+      const matchingDailySale = await (prisma as any).dailySale.findFirst({
+        where: { billNumber: debtTxn.billNumber },
+        include: { items: true },
+      })
+
+      if (matchingDailySale && Array.isArray(matchingDailySale.items) && matchingDailySale.items.length > 0) {
+        return NextResponse.json({
+          success: true,
+          type: 'SALES',
+          data: {
+            id: debtTxn.id,
+            billNumber: debtTxn.billNumber,
+            date: debtTxn.date ? new Date(debtTxn.date).toISOString().split('T')[0] : '',
+            customerName: debtTxn.deptAccount?.customerName || matchingDailySale.customerName || 'Debt Customer',
+            subtotal: matchingDailySale.subtotal || debtTxn.billAmount,
+            extraCharges: matchingDailySale.extraCharges || 0,
+            grandTotal: matchingDailySale.grandTotal || debtTxn.billAmount,
+            status: debtTxn.paymentStatus || 'PENDING',
+            paidAmount: debtTxn.paidAmount,
+            balanceAmount: debtTxn.balanceAmount,
+            items: matchingDailySale.items,
+          },
+        })
+      }
+
+      // Parse itemsSummary into structured items if no matching daily sale items found
+      const items: any[] = []
+      const rawSummary = debtTxn.itemsSummary || ''
+      const parts = rawSummary.split(',').map((s: string) => s.trim()).filter(Boolean)
+
+      if (parts.length > 0) {
+        parts.forEach((part: string, idx: number) => {
+          const match = part.match(/^(.+?)\s*\(\s*x\s*(\d+(?:\.\d+)?)\s*([^)]*)\)\s*@\s*₹?\s*(\d+(?:\.\d+)?)/i)
+          if (match) {
+            const pName = match[1].trim()
+            const qty = parseFloat(match[2]) || 1
+            const unit = match[3].trim() || 'Piece'
+            const price = parseFloat(match[4]) || 0
+            const amt = qty * price
+            items.push({
+              id: `${debtTxn.id}-${idx}`,
+              productName: pName,
+              hsnCode: '-',
+              gstRate: '18',
+              unit: unit,
+              quantity: qty,
+              unitPrice: price,
+              amount: amt,
+              discount: 0,
+              netTotal: amt,
+            })
+          } else {
+            const itemShare = debtTxn.billAmount / parts.length
+            items.push({
+              id: `${debtTxn.id}-${idx}`,
+              productName: part,
+              hsnCode: '-',
+              gstRate: '18',
+              unit: 'Unit',
+              quantity: 1,
+              unitPrice: itemShare,
+              amount: itemShare,
+              discount: 0,
+              netTotal: itemShare,
+            })
+          }
+        })
+      }
+
+      if (items.length === 0) {
+        items.push({
+          id: debtTxn.id,
+          productName: debtTxn.itemsSummary || 'Debt Bill Items',
+          hsnCode: '-',
+          gstRate: '18',
+          unit: 'Lot',
+          quantity: 1,
+          unitPrice: debtTxn.billAmount || 0,
+          amount: debtTxn.billAmount || 0,
+          discount: 0,
+          netTotal: debtTxn.billAmount || 0,
+        })
+      }
+
+      return NextResponse.json({
+        success: true,
+        type: 'SALES',
+        data: {
+          id: debtTxn.id,
+          billNumber: debtTxn.billNumber,
+          date: debtTxn.date ? new Date(debtTxn.date).toISOString().split('T')[0] : '',
+          customerName: debtTxn.deptAccount?.customerName || 'Debt Customer',
+          subtotal: debtTxn.billAmount || 0,
+          extraCharges: 0,
+          grandTotal: debtTxn.billAmount || 0,
+          status: debtTxn.paymentStatus || 'PENDING',
+          paidAmount: debtTxn.paidAmount,
+          balanceAmount: debtTxn.balanceAmount,
+          items,
+        },
+      })
+    }
+
     return NextResponse.json(
       { success: false, error: 'Bill record not found' },
       { status: 404 }
