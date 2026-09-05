@@ -3,17 +3,45 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const deptAccounts = await (prisma as any).deptAccount.findMany({
-      include: {
-        transactions: {
-          orderBy: { createdAt: 'desc' },
+    let deptAccounts
+    try {
+      deptAccounts = await (prisma as any).deptAccount.findMany({
+        include: {
+          transactions: {
+            orderBy: { createdAt: 'desc' },
+          },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+          },
         },
-        payments: {
-          orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
+      })
+    } catch (includeErr) {
+      console.warn('Fallback fetching deptAccounts without payments relation:', includeErr)
+      deptAccounts = await (prisma as any).deptAccount.findMany({
+        include: {
+          transactions: {
+            orderBy: { createdAt: 'desc' },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+        orderBy: { createdAt: 'desc' },
+      })
+
+      let allPayments: any[] = []
+      try {
+        allPayments = await (prisma as any).debtPayment.findMany({
+          orderBy: { date: 'desc' },
+        })
+      } catch (e) {
+        console.warn('debtPayment table not accessible yet:', e)
+      }
+
+      deptAccounts = deptAccounts.map((acc: any) => ({
+        ...acc,
+        payments: allPayments.filter((p: any) => p.deptAccountId === acc.id),
+      }))
+    }
+
     return NextResponse.json({ success: true, source: 'database', data: deptAccounts })
   } catch (error: any) {
     console.error('Error fetching Dept accounts:', error)

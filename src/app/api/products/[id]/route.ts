@@ -15,7 +15,7 @@ export async function PUT(
       updated = await (prisma as any).product.update({
         where: { id },
         data: {
-          serialNumber: body.serialNumber,
+          hsnCode: body.hsnCode || body.serialNumber,
           name: body.name,
           purchasePrice: parseFloat(body.purchasePrice) || 0,
           unit: body.unit || 'Kg',
@@ -28,7 +28,7 @@ export async function PUT(
       updated = await (prisma as any).product.upsert({
         where: { id },
         update: {
-          serialNumber: body.serialNumber,
+          hsnCode: body.hsnCode || body.serialNumber,
           name: body.name,
           purchasePrice: parseFloat(body.purchasePrice) || 0,
           unit: body.unit || 'Kg',
@@ -38,7 +38,7 @@ export async function PUT(
         },
         create: {
           id,
-          serialNumber: body.serialNumber,
+          hsnCode: body.hsnCode || body.serialNumber,
           name: body.name,
           slug: body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now().toString().slice(-4),
           purchasePrice: parseFloat(body.purchasePrice) || 0,

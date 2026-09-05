@@ -153,10 +153,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main Admin Body */}
       <div className="flex-1 flex overflow-hidden relative">
-        
+        {/* Mobile Sidebar Overlay Backdrop */}
+        {sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-30 lg:hidden transition-opacity"
+            aria-hidden="true"
+          />
+        )}
+
         {/* Sidebar Navigation */}
         <aside
-          className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col justify-between shrink-0 h-full overflow-y-auto shadow-xs ${
+          className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col justify-between shrink-0 h-full overflow-y-auto shadow-xl lg:shadow-xs ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -188,11 +196,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </nav>
             </div>
           </div>
-
         </aside>
 
         {/* Main Content Workspace */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50 h-full">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 bg-slate-50 h-full touch-pan-y">
           {children}
         </main>
 

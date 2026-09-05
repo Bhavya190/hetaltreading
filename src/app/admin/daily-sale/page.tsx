@@ -29,7 +29,8 @@ export interface SalesGridRow {
   id: string
   productId: string
   productName: string
-  serialNumber: string
+  hsnCode?: string
+  serialNumber?: string
   gstRate: string
   unit: string
   quantity: string
@@ -43,6 +44,7 @@ export interface DailySaleItemRecord {
   id: string
   productId?: string
   productName: string
+  hsnCode?: string
   serialNumber?: string
   gstRate: string
   unit: string
@@ -68,7 +70,8 @@ export interface DailySaleRecord {
 export interface ProductOption {
   id: string
   name: string
-  serialNumber: string
+  hsnCode?: string
+  serialNumber?: string
   gstRate: string
   unit: string
   sellingPrice: number
@@ -324,6 +327,7 @@ export default function DailySalePage() {
             ...row,
             productId: '',
             productName: '',
+            hsnCode: '-',
             serialNumber: '-',
             gstRate: '18%',
             unit: 'Kg',
@@ -343,7 +347,8 @@ export default function DailySalePage() {
           ...row,
           productId: foundProd.id,
           productName: foundProd.name,
-          serialNumber: foundProd.serialNumber,
+          hsnCode: foundProd.hsnCode || foundProd.serialNumber || '-',
+          serialNumber: foundProd.hsnCode || foundProd.serialNumber || '-',
           gstRate: foundProd.gstRate,
           unit: foundProd.unit,
           unitPrice: price,
@@ -1143,7 +1148,7 @@ export default function DailySalePage() {
                       <thead>
                         <tr className="bg-slate-50 text-slate-500 font-extrabold uppercase tracking-wider text-[10px] border-b border-slate-200">
                           <th className="py-3 px-3 min-w-[200px]">PRODUCT SPECIFICATIONS</th>
-                          <th className="py-3 px-3">SERIAL / SKU</th>
+                          <th className="py-3 px-3">HSN CODE</th>
                           <th className="py-3 px-3">GST %</th>
                           <th className="py-3 px-3 min-w-[120px]">QTY</th>
                           <th className="py-3 px-3 font-right">AMOUNT (₹)</th>

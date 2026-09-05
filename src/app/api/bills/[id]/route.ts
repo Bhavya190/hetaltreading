@@ -56,7 +56,7 @@ export async function GET(
         {
           id: bill.id,
           productName: 'Commercial Invoice Item',
-          serialNumber: '-',
+          hsnCode: '-',
           gstRate: '18',
           unit: 'Lot',
           quantity: 1,
@@ -102,7 +102,7 @@ export async function GET(
         {
           id: purchase.id,
           productName: purchase.item || 'Purchase Consignment Item',
-          serialNumber: '-',
+          hsnCode: '-',
           gstRate: String(purchase.extraChargesGst || '18'),
           unit: 'Lot',
           quantity: qty,

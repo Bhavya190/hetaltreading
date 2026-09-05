@@ -7,7 +7,8 @@ import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/
 
 export interface ProductRecord {
   id: string
-  serialNumber: string
+  hsnCode?: string
+  serialNumber?: string
   name: string
   purchasePrice: number
   unit: string
@@ -29,7 +30,7 @@ export default function AdminProductsPage() {
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 
   // Form State
-  const [serialNumber, setSerialNumber] = useState('')
+  const [hsnCode, setHsnCode] = useState('')
   const [name, setName] = useState('')
   const [purchasePrice, setPurchasePrice] = useState('')
   const [unit, setUnit] = useState('Kg')
@@ -60,7 +61,7 @@ export default function AdminProductsPage() {
   }, [])
 
   const resetForm = () => {
-    setSerialNumber('')
+    setHsnCode('')
     setName('')
     setPurchasePrice('')
     setUnit('Kg')
@@ -71,11 +72,11 @@ export default function AdminProductsPage() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !serialNumber) return
+    if (!name) return
 
     setSaving(true)
     const payload = {
-      serialNumber,
+      hsnCode: hsnCode || '2804',
       name,
       purchasePrice,
       unit,
@@ -107,7 +108,7 @@ export default function AdminProductsPage() {
 
   const openEditModal = (prod: ProductRecord) => {
     setEditingProduct(prod)
-    setSerialNumber(prod.serialNumber || '')
+    setHsnCode(prod.hsnCode || prod.serialNumber || '')
     setName(prod.name || '')
     setPurchasePrice(prod.purchasePrice ? String(prod.purchasePrice) : '')
     setUnit(prod.unit || 'Kg')
@@ -122,7 +123,7 @@ export default function AdminProductsPage() {
 
     setSaving(true)
     const payload = {
-      serialNumber,
+      hsnCode: hsnCode || '2804',
       name,
       purchasePrice,
       unit,
@@ -202,9 +203,9 @@ export default function AdminProductsPage() {
     const exportItems = getExportProducts()
     exportToPDF({
       title: 'Products Directory & Stock Inventory Report',
-      headers: ['Serial / SKU', 'Product Name', 'Purchase Price', 'Selling Price', 'GST Rate', 'Current Stock'],
+      headers: ['HSN Code', 'Product Name', 'Purchase Price', 'Selling Price', 'GST Rate', 'Current Stock'],
       data: exportItems.map((p) => [
-        p.serialNumber,
+        p.hsnCode || p.serialNumber || '-',
         p.name,
         `₹ ${p.purchasePrice ? p.purchasePrice.toLocaleString() : 0} / ${p.unit}`,
         `₹ ${p.sellingPrice ? p.sellingPrice.toLocaleString() : 0} / ${p.unit}`,
@@ -219,9 +220,9 @@ export default function AdminProductsPage() {
     const exportItems = getExportProducts()
     exportToExcel({
       filename: 'Products_Directory',
-      headers: ['SKU Serial', 'Product Name', 'Purchase Price', 'Selling Price', 'Unit', 'GST Rate (%)', 'Inventory Stock'],
+      headers: ['HSN Code', 'Product Name', 'Purchase Price', 'Selling Price', 'Unit', 'GST Rate (%)', 'Inventory Stock'],
       rows: exportItems.map((p) => [
-        p.serialNumber,
+        p.hsnCode || p.serialNumber || '-',
         p.name,
         p.purchasePrice || 0,
         p.sellingPrice || 0,
@@ -236,9 +237,9 @@ export default function AdminProductsPage() {
     const exportItems = getExportProducts()
     printReport({
       title: 'Products Directory & Stock Inventory Report',
-      headers: ['Serial / SKU', 'Product Name', 'Purchase Price', 'Selling Price', 'GST Rate', 'Current Stock'],
+      headers: ['HSN Code', 'Product Name', 'Purchase Price', 'Selling Price', 'GST Rate', 'Current Stock'],
       data: exportItems.map((p) => [
-        p.serialNumber,
+        p.hsnCode || p.serialNumber || '-',
         p.name,
         `₹ ${p.purchasePrice ? p.purchasePrice.toLocaleString() : 0} / ${p.unit}`,
         `₹ ${p.sellingPrice ? p.sellingPrice.toLocaleString() : 0} / ${p.unit}`,
@@ -305,7 +306,7 @@ export default function AdminProductsPage() {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search serial number or product name..."
+                placeholder="Search HSN code or product name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-600 text-slate-900"
@@ -344,7 +345,7 @@ export default function AdminProductsPage() {
                       className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
                   </th>
-                  <th className="py-3 px-4 whitespace-nowrap">Serial / SKU</th>
+                  <th className="py-3 px-4 whitespace-nowrap">HSN Code</th>
                   <th className="py-3 px-4 whitespace-nowrap">Product Name</th>
                   <th className="py-3 px-4 whitespace-nowrap">Purchase Price</th>
                   <th className="py-3 px-4 whitespace-nowrap">Selling Price</th>
@@ -364,7 +365,7 @@ export default function AdminProductsPage() {
                         className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                       />
                     </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">{prod.serialNumber}</td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">{prod.hsnCode || prod.serialNumber || '-'}</td>
                     <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">{prod.name}</td>
                     <td className="py-3.5 px-4 font-mono text-slate-600 whitespace-nowrap">₹ {prod.purchasePrice ? prod.purchasePrice.toLocaleString() : 0} / {prod.unit}</td>
                     <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700 whitespace-nowrap">₹ {prod.sellingPrice ? prod.sellingPrice.toLocaleString() : 0} / {prod.unit}</td>
@@ -380,7 +381,7 @@ export default function AdminProductsPage() {
                       <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                       <button
                         onClick={() => {
-                          const msg = `📦 *Product Specification*\nSKU: ${prod.serialNumber}\nName: ${prod.name}\nPurchase Price: ₹${prod.purchasePrice}/${prod.unit}\nSelling Price: ₹${prod.sellingPrice}/${prod.unit}\nGST Rate: ${prod.gstRate}%\nCurrent Stock: ${prod.inventoryStock || 0} ${prod.unit}`
+                          const msg = `📦 *Product Specification*\nHSN Code: ${prod.hsnCode || prod.serialNumber || '-'}\nName: ${prod.name}\nPurchase Price: ₹${prod.purchasePrice}/${prod.unit}\nSelling Price: ₹${prod.sellingPrice}/${prod.unit}\nGST Rate: ${prod.gstRate}%\nCurrent Stock: ${prod.inventoryStock || 0} ${prod.unit}`
                           shareOnWhatsApp(msg)
                         }}
                         className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
@@ -446,13 +447,13 @@ export default function AdminProductsPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Serial Number / SKU *</label>
+                <label className="block font-bold text-slate-700 mb-1">HSN Code *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. SN-1001"
-                  value={serialNumber}
-                  onChange={(e) => setSerialNumber(e.target.value)}
+                  placeholder="e.g. 2804, 2815, 2902"
+                  value={hsnCode}
+                  onChange={(e) => setHsnCode(e.target.value)}
                   className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
                 />
               </div>

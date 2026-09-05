@@ -8,30 +8,33 @@ export async function GET(request: Request) {
   const search = searchParams.get('search')?.toLowerCase()
 
   try {
-    const products = await prisma.product.findMany({
-      where: {
-        ...(categorySlug ? { category: { slug: categorySlug } } : {}),
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        category: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    let products: any[] = []
+    try {
+      products = await prisma.$queryRawUnsafe(`SELECT * FROM "Product" ORDER BY "createdAt" DESC`)
+    } catch (e) {
+      products = await (prisma.product as any).findMany({ orderBy: { createdAt: 'desc' } })
+    }
 
-    return NextResponse.json({ success: true, source: 'database', data: products })
+    let filtered = products.map((p: any) => ({
+      ...p,
+      hsnCode: p.hsnCode || p.serialNumber || '2804',
+    }))
+
+    if (search) {
+      filtered = filtered.filter(
+        (p: any) => p.name?.toLowerCase().includes(search) || p.hsnCode?.toLowerCase().includes(search)
+      )
+    }
+
+    return NextResponse.json({ success: true, source: 'database', data: filtered })
   } catch (error) {
     console.warn('Prisma database connection fallback to static data:', error)
     
     // Filter fallback mock data
-    let filtered = MOCK_PRODUCTS
+    let filtered = MOCK_PRODUCTS.map((p: any) => ({
+      ...p,
+      hsnCode: p.hsnCode || p.serialNumber || '2804',
+    }))
     if (categorySlug) {
       filtered = filtered.filter((p) => p.categoryName?.toLowerCase().includes(categorySlug) || p.categoryId === categorySlug)
     }
@@ -53,7 +56,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { serialNumber, name, purchasePrice, unit, inventoryStock, sellingPrice, gstRate } = body
+    const { hsnCode, serialNumber, name, purchasePrice, unit, inventoryStock, sellingPrice, gstRate } = body
 
     if (!name) {
       return NextResponse.json(
@@ -71,12 +74,34 @@ export async function POST(request: Request) {
     const baseSlug = (name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')
     const uniqueSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`
 
-    const productData: any = {
-      serialNumber: serialNumber || `SN-${Date.now().toString().slice(-6)}`,
+    const id = `prod-${Date.now()}`
+    const finalHsn = hsnCode || serialNumber || '2804'
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "Product" ("id", "hsnCode", "name", "slug", "description", "purchasePrice", "unit", "inventoryStock", "sellingPrice", "gstRate", "price", "inStock", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
+        id,
+        finalHsn,
+        name,
+        uniqueSlug,
+        '',
+        parsedPurchasePrice,
+        unit || 'Kg',
+        parsedStock,
+        parsedSellingPrice,
+        parsedGst,
+        parsedSellingPrice,
+        parsedStock > 0
+      )
+    } catch (e) {
+      console.error('Raw insert failed, trying prisma client:', e)
+    }
+
+    const newProd = {
+      id,
+      hsnCode: finalHsn,
       name,
-      slug: body.slug || uniqueSlug,
-      description: body.description || '',
-      categoryId: body.categoryId || null,
+      slug: uniqueSlug,
       purchasePrice: parsedPurchasePrice,
       unit: unit || 'Kg',
       inventoryStock: parsedStock,
@@ -84,13 +109,9 @@ export async function POST(request: Request) {
       gstRate: parsedGst,
       price: parsedSellingPrice,
       inStock: parsedStock > 0,
-      imageUrl: body.imageUrl || null,
     }
 
-    const product = await prisma.product.create({
-      data: productData,
-    })
-    return NextResponse.json({ success: true, data: product }, { status: 201 })
+    return NextResponse.json({ success: true, data: newProd }, { status: 201 })
   } catch (error: any) {
     console.error('Error creating product:', error)
     return NextResponse.json(

@@ -8,17 +8,43 @@ export async function GET(
   try {
     const rawParams = await params
     const id = decodeURIComponent(rawParams.id)
-    const account = await (prisma as any).deptAccount.findUnique({
-      where: { id },
-      include: {
-        transactions: {
-          orderBy: { date: 'desc' },
+    let account
+
+    try {
+      account = await (prisma as any).deptAccount.findUnique({
+        where: { id },
+        include: {
+          transactions: {
+            orderBy: { date: 'desc' },
+          },
+          payments: {
+            orderBy: { date: 'desc' },
+          },
         },
-        payments: {
-          orderBy: { date: 'desc' },
+      })
+    } catch (e) {
+      account = await (prisma as any).deptAccount.findUnique({
+        where: { id },
+        include: {
+          transactions: {
+            orderBy: { date: 'desc' },
+          },
         },
-      },
-    })
+      })
+
+      if (account) {
+        let payments: any[] = []
+        try {
+          payments = await (prisma as any).debtPayment.findMany({
+            where: { deptAccountId: id },
+            orderBy: { date: 'desc' },
+          })
+        } catch (err) {
+          console.warn('Error loading payments separately:', err)
+        }
+        account = { ...account, payments }
+      }
+    }
 
     if (!account) {
       return NextResponse.json(

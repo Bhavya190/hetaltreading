@@ -57,7 +57,7 @@ export async function PUT(
           return {
             productId: item.productId || null,
             productName: item.productName || 'Custom Item',
-            serialNumber: item.serialNumber || '-',
+            hsnCode: item.hsnCode || item.serialNumber || '-',
             gstRate: String(item.gstRate || '18'),
             unit: item.unit || 'Kg',
             quantity: qty,

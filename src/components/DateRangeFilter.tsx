@@ -108,8 +108,8 @@ export default function DateRangeFilter({
       </div>
 
       {mode === 'RANGE' && (
-        <div className="flex flex-wrap items-center gap-2 bg-amber-50/80 border border-amber-300 p-1.5 rounded-xl text-xs">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 bg-amber-50/80 border border-amber-300 p-1.5 rounded-xl text-xs w-full sm:w-auto">
+          <div className="flex items-center justify-between sm:justify-start gap-1">
             <span className="font-bold text-amber-900 pl-1">From:</span>
             <input
               type="date"
@@ -118,7 +118,7 @@ export default function DateRangeFilter({
               className="px-2 py-1 border border-amber-400 bg-white font-mono font-bold rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none text-xs"
             />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between sm:justify-start gap-1">
             <span className="font-bold text-amber-900">To:</span>
             <input
               type="date"
@@ -127,18 +127,18 @@ export default function DateRangeFilter({
               className="px-2 py-1 border border-amber-400 bg-white font-mono font-bold rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none text-xs"
             />
           </div>
-          <div className="flex items-center gap-1 border-l border-amber-300 pl-2">
+          <div className="flex items-center justify-end gap-1 border-t sm:border-t-0 sm:border-l border-amber-300 pt-1 sm:pt-0 sm:pl-2">
             <button
               type="button"
               onClick={() => handleQuickPreset('7days')}
-              className="px-2 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 rounded-md transition-colors"
+              className="px-2 py-1 text-[11px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 rounded-md transition-colors"
             >
               7 Days
             </button>
             <button
               type="button"
               onClick={() => handleQuickPreset('month')}
-              className="px-2 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 rounded-md transition-colors"
+              className="px-2 py-1 text-[11px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 rounded-md transition-colors"
             >
               This Month
             </button>

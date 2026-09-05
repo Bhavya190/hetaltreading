@@ -948,6 +948,7 @@ export interface SaleInvoiceExportParams {
   grandTotal: number
   items: {
     productName: string
+    hsnCode?: string
     serialNumber?: string
     gstRate?: string | number
     unit?: string
@@ -1063,7 +1064,7 @@ export function printSaleInvoice(params: SaleInvoiceExportParams) {
   const itemsHtml = gstBreakdown.processedItems.map((it, i) => `
     <tr style="background-color: ${i % 2 === 0 ? '#ffffff' : '#f8fafc'}; font-size: 10.5px;">
       <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${it.productName}</td>
-      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #64748b;">${it.serialNumber || '-'}</td>
+      <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #64748b;">${it.hsnCode || it.serialNumber || '-'}</td>
       <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${it.quantity} ${it.unit || 'Kg'}</td>
       <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace;">₹ ${(it.unitPrice || 0).toLocaleString()}</td>
       <td style="padding: 7px 8px; border: 1px solid #e2e8f0; font-family: monospace; color: #dc2626;">₹ ${(it.discount || 0).toLocaleString()}</td>
@@ -1186,7 +1187,7 @@ export function printSaleInvoice(params: SaleInvoiceExportParams) {
             <thead>
               <tr>
                 <th>Product Name</th>
-                <th>SKU / Serial</th>
+                <th>HSN Code</th>
                 <th>Qty</th>
                 <th>Unit Price</th>
                 <th>Discount</th>
@@ -1265,11 +1266,11 @@ export function exportSaleInvoiceExcel(params: SaleInvoiceExportParams) {
   csvRows.push(`""`)
 
   csvRows.push(`"PRODUCT LINE ITEMS WITH GST BREAKDOWN"`)
-  csvRows.push(`"Product Name","SKU / Serial","Qty","Unit Price (₹)","Discount (₹)","Raw Taxable Amount (₹)","GST Rate (%)","CGST (%)","CGST Amount (₹)","SGST (%)","SGST Amount (₹)","Net Total (₹)"`)
+  csvRows.push(`"Product Name","HSN Code","Qty","Unit Price (₹)","Discount (₹)","Raw Taxable Amount (₹)","GST Rate (%)","CGST (%)","CGST Amount (₹)","SGST (%)","SGST Amount (₹)","Net Total (₹)"`)
   gstBreakdown.processedItems.forEach((it) => {
     csvRows.push([
       `"${(it.productName || '').replace(/"/g, '""')}"`,
-      `"${it.serialNumber || '-'}"`,
+      `"${it.hsnCode || it.serialNumber || '-'}"`,
       `"${it.quantity} ${it.unit || 'Kg'}"`,
       `"${it.unitPrice}"`,
       `"${it.discount}"`,

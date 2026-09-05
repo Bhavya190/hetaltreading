@@ -38,7 +38,7 @@ model Category {
 
 model Product {
   id             String    @id @default(cuid())
-  serialNumber   String?   @unique
+  hsnCode        String?
   name           String
   slug           String    @unique
   description    String    @default("")
@@ -169,7 +169,7 @@ model DailySaleItem {
   dailySale    DailySale @relation(fields: [dailySaleId], references: [id], onDelete: Cascade)
   productId    String?
   productName  String
-  serialNumber String?
+  hsnCode      String?
   gstRate      String    @default("18")
   unit         String    @default("Kg")
   quantity     Float     @default(1)

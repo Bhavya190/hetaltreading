@@ -27,6 +27,7 @@ export interface BillItemRecord {
   id: string
   productId?: string
   productName: string
+  hsnCode?: string
   serialNumber?: string
   gstRate: string
   unit: string
@@ -279,7 +280,7 @@ export default function BillDetailPage() {
                 <thead>
                   <tr className="bg-slate-900 text-white font-extrabold uppercase tracking-wider text-[10px]">
                     <th className="py-3 px-3">Product Name</th>
-                    <th className="py-3 px-3">SKU / Serial</th>
+                    <th className="py-3 px-3">HSN Code</th>
                     <th className="py-3 px-3">Qty</th>
                     <th className="py-3 px-3">Unit Price</th>
                     <th className="py-3 px-3">Discount</th>
@@ -294,7 +295,7 @@ export default function BillDetailPage() {
                   {gstSummary.processedItems.map((it) => (
                     <tr key={it.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-3 font-bold text-slate-900">{it.productName}</td>
-                      <td className="py-3 px-3 font-mono text-slate-500">{it.serialNumber || '-'}</td>
+                      <td className="py-3 px-3 font-mono text-slate-500">{it.hsnCode || it.serialNumber || '-'}</td>
                       <td className="py-3 px-3 font-bold text-amber-700">
                         {it.quantity} {it.unit || 'Kg'}
                       </td>

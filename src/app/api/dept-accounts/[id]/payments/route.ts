@@ -145,18 +145,36 @@ export async function POST(
     const totalPaidAmount = allPayments.reduce((acc: number, p: any) => acc + (p.amount || 0), 0)
     const balanceDue = Math.max(0, totalDebtAmount - totalPaidAmount)
 
-    const updatedAccount = await (prisma as any).deptAccount.update({
-      where: { id },
-      data: {
-        totalDebtAmount,
-        totalPaidAmount,
-        balanceDue,
-      },
-      include: {
-        transactions: { orderBy: { createdAt: 'desc' } },
-        payments: { orderBy: { date: 'desc' } },
-      },
-    })
+    let updatedAccount
+    try {
+      updatedAccount = await (prisma as any).deptAccount.update({
+        where: { id },
+        data: {
+          totalDebtAmount,
+          totalPaidAmount,
+          balanceDue,
+        },
+        include: {
+          transactions: { orderBy: { createdAt: 'desc' } },
+          payments: { orderBy: { date: 'desc' } },
+        },
+      })
+    } catch (e) {
+      updatedAccount = await (prisma as any).deptAccount.update({
+        where: { id },
+        data: {
+          totalDebtAmount,
+          totalPaidAmount,
+          balanceDue,
+        },
+        include: {
+          transactions: { orderBy: { createdAt: 'desc' } },
+        },
+      })
+      if (updatedAccount) {
+        updatedAccount = { ...updatedAccount, payments: allPayments }
+      }
+    }
 
     return NextResponse.json(
       {
