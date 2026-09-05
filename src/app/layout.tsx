@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import AutoCapitalizeInputs from '@/components/AutoCapitalizeInputs'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -23,8 +24,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} antialiased`}>
-      <body className="bg-[var(--bg-dark)] text-slate-100 min-h-screen flex flex-col font-sans">
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} antialiased`}>
+      <body suppressHydrationWarning className="bg-[var(--bg-dark)] text-slate-100 min-h-screen flex flex-col font-sans">
+        <AutoCapitalizeInputs />
         {children}
       </body>
     </html>

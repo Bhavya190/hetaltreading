@@ -189,7 +189,7 @@ export function printReport(
 
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}${logoUrlPath}` : logoUrlPath
   const upiUrl = `upi://pay?pa=${encodeURIComponent(bankDetails.upiId || 'hetaltrading@upi')}&pn=${encodeURIComponent(bankDetails.accountName || 'Hetal Trading Company')}&cu=INR`
-  const qrCodeUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUrl)}&size=200&margin=1`
+  const qrCodeUrl = typeof window !== 'undefined' ? `${window.location.origin}/HTC-QR.jpeg` : '/HTC-QR.jpeg'
 
   const tableHeadersHtml = hdrs
     .map(
@@ -249,6 +249,27 @@ export function printReport(
             border-radius: 8px;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
           }
+          .header-top-banner {
+            text-align: center !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 13px;
+            font-weight: 800;
+            color: #78350f;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+          }
+          .tax-invoice-heading {
+            font-size: 15px;
+            font-weight: 800;
+            color: #92400e;
+            text-transform: uppercase;
+            margin-top: 2px;
+            letter-spacing: 1px;
+          }
           .header-container {
             display: flex;
             align-items: center;
@@ -281,6 +302,13 @@ export function printReport(
             color: #64748b;
             margin: 2px 0 0 0;
             font-weight: 500;
+          }
+          .company-gstin {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 2px;
+            font-family: monospace;
           }
           .report-badge {
             display: inline-block;
@@ -417,40 +445,29 @@ export function printReport(
           }
 
           @media print {
-            body {
-              padding: 0;
-              margin: 0;
-              background: #ffffff;
-            }
-            .page-container {
-              max-width: 100% !important;
-              width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              border: none !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-            }
-            @page {
-              size: A4 portrait;
-              margin: 10mm;
-            }
+            body { padding: 12mm 15mm !important; margin: 0 !important; background: #ffffff !important; }
+            .page-container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+            @page { size: A4 portrait; margin: 0; }
             .payment-section { page-break-inside: avoid; }
           }
         </style>
       </head>
       <body>
         <div class="page-container">
+          <div class="header-top-banner" style="text-align: center; width: 100%; margin: 0 auto 12px auto; display: block;">
+            <div style="text-align: center; font-size: 13px; font-weight: 800; color: #78350f; letter-spacing: 0.5px;">|| શ્રી આદિનાથાય નમઃ ||</div>
+            <div style="text-align: center; font-size: 15px; font-weight: 800; color: #92400e; text-transform: uppercase; margin-top: 2px; letter-spacing: 1px;">TAX INVOICE</div>
+          </div>
           <div class="header-container">
             <div class="header-left">
               <img src="${logoUrl}" alt="Hetal Trading Company Logo" class="company-logo" />
               <div class="company-info">
                 <h1>Hetal Trading Company</h1>
-                <p>Industrial Chemical Procurement & Sales Ledger</p>
-                <div class="report-badge">${title}</div>
+                <div class="company-gstin"><strong>GSTIN :</strong> 24AGWPD0844K1Z7</div>
               </div>
             </div>
             <div class="meta-box">
+              <div><strong>MO :</strong> 9428480067</div>
               <div><strong>Generated:</strong> ${currentDate}</div>
               <div><strong>Total Records:</strong> ${rws.length}</div>
             </div>
@@ -591,7 +608,7 @@ export function printCustomerStatement(params: CustomerStatementExportParams) {
 
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}${logoUrlPath}` : logoUrlPath
   const upiUrl = `upi://pay?pa=${encodeURIComponent(bankDetails.upiId || 'hetaltrading@upi')}&pn=${encodeURIComponent(bankDetails.accountName || 'Hetal Trading Company')}&cu=INR`
-  const qrCodeUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUrl)}&size=200&margin=1`
+  const qrCodeUrl = typeof window !== 'undefined' ? `${window.location.origin}/HTC-QR.jpeg` : '/HTC-QR.jpeg'
 
   const currentDate = new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -747,25 +764,29 @@ export function printCustomerStatement(params: CustomerStatementExportParams) {
           .footer { margin-top: 18px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 9.5px; color: #94a3b8; text-align: center; }
 
           @media print {
-            body { padding: 0; margin: 0; background: #ffffff; }
+            body { padding: 12mm 15mm !important; margin: 0 !important; background: #ffffff !important; }
             .page-container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
-            @page { size: A4 portrait; margin: 10mm; }
+            @page { size: A4 portrait; margin: 0; }
             .payment-section { page-break-inside: avoid; }
           }
         </style>
       </head>
       <body>
         <div class="page-container">
+          <div class="header-top-banner" style="text-align: center; width: 100%; margin: 0 auto 12px auto; display: block;">
+            <div style="text-align: center; font-size: 13px; font-weight: 800; color: #78350f; letter-spacing: 0.5px;">|| શ્રી આદિનાથાય નમઃ ||</div>
+            <div style="text-align: center; font-size: 15px; font-weight: 800; color: #92400e; text-transform: uppercase; margin-top: 2px; letter-spacing: 1px;">CUSTOMER DEBT & PAYMENT STATEMENT</div>
+          </div>
           <div class="header-container">
             <div class="header-left">
               <img src="${logoUrl}" alt="Hetal Trading Company Logo" class="company-logo" />
               <div class="company-info">
                 <h1>Hetal Trading Company</h1>
-                <p>Industrial Chemical Procurement & Sales Ledger</p>
-                <div class="report-badge">CUSTOMER DEBT & PAYMENT STATEMENT</div>
+                <div class="company-gstin"><strong>GSTIN :</strong> 24AGWPD0844K1Z7</div>
               </div>
             </div>
             <div class="meta-box">
+              <div><strong>MO :</strong> 9428480067</div>
               <div><strong>Statement Date:</strong> ${currentDate}</div>
             </div>
           </div>
@@ -1057,8 +1078,9 @@ export function printSaleInvoice(params: SaleInvoiceExportParams) {
 
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}${logoUrlPath}` : logoUrlPath
   const upiUrl = `upi://pay?pa=${encodeURIComponent(bankDetails.upiId || 'hetaltrading@upi')}&pn=${encodeURIComponent(bankDetails.accountName || 'Hetal Trading Company')}&cu=INR`
-  const qrCodeUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUrl)}&size=200&margin=1`
+  const qrCodeUrl = typeof window !== 'undefined' ? `${window.location.origin}/HTC-QR.jpeg` : '/HTC-QR.jpeg'
 
+  const currentDate = new Date().toISOString().split('T')[0]
   const gstBreakdown = calculateBillGstTotals(params.items || [], params.extraCharges || 0)
 
   const itemsHtml = gstBreakdown.processedItems.map((it, i) => `
@@ -1154,22 +1176,29 @@ export function printSaleInvoice(params: SaleInvoiceExportParams) {
           .footer { margin-top: 18px; border-top: 1px solid #e2e8f0; padding-top: 8px; font-size: 9.5px; color: #94a3b8; text-align: center; }
 
           @media print {
-            body { padding: 0; margin: 0; background: #ffffff; }
+            body { padding: 12mm 15mm !important; margin: 0 !important; background: #ffffff !important; }
             .page-container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
-            @page { size: A4 portrait; margin: 10mm; }
+            @page { size: A4 portrait; margin: 0; }
           }
         </style>
       </head>
       <body>
         <div class="page-container">
+          <div class="header-top-banner" style="text-align: center; width: 100%; margin: 0 auto 12px auto; display: block;">
+            <div style="text-align: center; font-size: 13px; font-weight: 800; color: #78350f; letter-spacing: 0.5px;">|| શ્રી આદિનાથાય નમઃ ||</div>
+            <div style="text-align: center; font-size: 15px; font-weight: 800; color: #92400e; text-transform: uppercase; margin-top: 2px; letter-spacing: 1px;">TAX INVOICE</div>
+          </div>
           <div class="header-container">
             <div class="header-left">
               <img src="${logoUrl}" alt="Hetal Trading Company Logo" class="company-logo" />
               <div class="company-info">
                 <h1>Hetal Trading Company</h1>
-                <p>Industrial Chemical Procurement & Sales Ledger</p>
-                <div class="report-badge">GST TAX INVOICE / SALE BILL</div>
+                <div class="company-gstin"><strong>GSTIN :</strong> 24AGWPD0844K1Z7</div>
               </div>
+            </div>
+            <div class="meta-box">
+              <div><strong>Mo :</strong> 9428480067</div>
+              <div><strong>Date:</strong> ${currentDate}</div>
             </div>
           </div>
 
