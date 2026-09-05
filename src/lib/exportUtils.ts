@@ -1051,15 +1051,15 @@ export function calculateBillGstTotals<T extends { netTotal: number; gstRate?: s
   })
 
   const totalGstAmount = totalCgstAmount + totalSgstAmount
-  const calculatedGrandTotal = totalRawAmount + totalGstAmount + (extraCharges || 0)
+  const calculatedGrandTotal = Math.round(totalRawAmount + totalGstAmount + (extraCharges || 0))
 
   return {
     processedItems,
-    totalRawAmount,
-    totalCgstAmount,
-    totalSgstAmount,
-    totalGstAmount,
-    extraCharges,
+    totalRawAmount: Math.round(totalRawAmount),
+    totalCgstAmount: Math.round(totalCgstAmount),
+    totalSgstAmount: Math.round(totalSgstAmount),
+    totalGstAmount: Math.round(totalGstAmount),
+    extraCharges: Math.round(extraCharges || 0),
     calculatedGrandTotal,
   }
 }
@@ -1233,12 +1233,12 @@ export function printSaleInvoice(params: SaleInvoiceExportParams) {
           </table>
 
           <div class="totals-box">
-            <div class="totals-row"><span>Raw Subtotal (Taxable):</span><strong>₹ ${gstBreakdown.totalRawAmount.toFixed(2)}</strong></div>
-            <div class="totals-row"><span>CGST Total:</span><strong>₹ ${gstBreakdown.totalCgstAmount.toFixed(2)}</strong></div>
-            <div class="totals-row"><span>SGST Total:</span><strong>₹ ${gstBreakdown.totalSgstAmount.toFixed(2)}</strong></div>
-            <div class="totals-row"><span>Total GST Tax:</span><strong>₹ ${gstBreakdown.totalGstAmount.toFixed(2)}</strong></div>
-            <div class="totals-row"><span>Extra Charges:</span><strong>₹ ${(gstBreakdown.extraCharges || 0).toFixed(2)}</strong></div>
-            <div class="grand-total-row"><span>Grand Total:</span><span>₹ ${gstBreakdown.calculatedGrandTotal.toFixed(2)}</span></div>
+            <div class="totals-row"><span>Raw Subtotal (Taxable):</span><strong>₹ ${Math.round(gstBreakdown.totalRawAmount).toLocaleString()}</strong></div>
+            <div class="totals-row"><span>CGST Total:</span><strong>₹ ${Math.round(gstBreakdown.totalCgstAmount).toLocaleString()}</strong></div>
+            <div class="totals-row"><span>SGST Total:</span><strong>₹ ${Math.round(gstBreakdown.totalSgstAmount).toLocaleString()}</strong></div>
+            <div class="totals-row"><span>Total GST Tax:</span><strong>₹ ${Math.round(gstBreakdown.totalGstAmount).toLocaleString()}</strong></div>
+            <div class="totals-row"><span>Extra Charges:</span><strong>₹ ${Math.round(gstBreakdown.extraCharges || 0).toLocaleString()}</strong></div>
+            <div class="grand-total-row"><span>Grand Total:</span><span>₹ ${Math.round(gstBreakdown.calculatedGrandTotal).toLocaleString()}</span></div>
           </div>
 
           <div class="payment-section">

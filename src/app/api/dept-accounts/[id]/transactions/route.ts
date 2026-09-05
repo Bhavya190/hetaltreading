@@ -56,6 +56,24 @@ export async function POST(
       },
     })
 
+    // If initial payment was made during bill creation, log it in Received Payment History
+    if (pAmount > 0) {
+      try {
+        await (prisma as any).debtPayment.create({
+          data: {
+            deptAccountId: id,
+            date: date ? new Date(date) : new Date(),
+            paymentType: 'CASH',
+            amount: pAmount,
+            note: 'Initial payment logged during bill issuance',
+            appliedBillNo: `Bill #${billNumber}`,
+          },
+        })
+      } catch (e) {
+        console.warn('Could not create initial payment log:', e)
+      }
+    }
+
     // Recalculate DeptAccount total balances & allocations
     const updatedAccount = await recalculateDeptAccountLedger(id)
 

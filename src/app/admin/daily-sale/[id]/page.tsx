@@ -230,7 +230,7 @@ export default function DailySaleDetailPage() {
           <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-200 text-right space-y-0.5 min-w-[220px]">
             <div className="text-emerald-800 font-bold uppercase text-[10px] tracking-wider">Grand Total Amount</div>
             <div className="font-mono font-black text-emerald-900 text-2xl">
-              ₹ {gstSummary.calculatedGrandTotal.toFixed(2)}
+              ₹ {Math.round(gstSummary.calculatedGrandTotal).toLocaleString()}
             </div>
             <div className="text-[10px] text-emerald-700 font-semibold">Inclusive of all taxes & charges</div>
           </div>
@@ -272,10 +272,10 @@ export default function DailySaleDetailPage() {
                       <td className="py-3 px-3 font-bold text-amber-700">
                         {it.quantity} {it.unit || 'Kg'}
                       </td>
-                      <td className="py-3 px-3 font-mono text-slate-700">₹ {(it.unitPrice || 0).toLocaleString()}</td>
-                      <td className="py-3 px-3 font-mono text-rose-600">₹ {(it.discount || 0).toLocaleString()}</td>
+                      <td className="py-3 px-3 font-mono text-slate-700">₹ {Math.round(it.unitPrice || 0).toLocaleString()}</td>
+                      <td className="py-3 px-3 font-mono text-rose-600">₹ {Math.round(it.discount || 0).toLocaleString()}</td>
                       <td className="py-3 px-3 font-mono font-semibold text-slate-900">
-                        ₹ {it.calc.rawAmount.toFixed(2)}
+                        ₹ {Math.round(it.calc.rawAmount).toLocaleString()}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span className="inline-flex flex-col items-center bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[10px]">
@@ -284,13 +284,13 @@ export default function DailySaleDetailPage() {
                         </span>
                       </td>
                       <td className="py-3 px-3 font-mono text-blue-700 font-semibold">
-                        ₹ {it.calc.cgstAmount.toFixed(2)}
+                        ₹ {Math.round(it.calc.cgstAmount).toLocaleString()}
                       </td>
                       <td className="py-3 px-3 font-mono text-blue-700 font-semibold">
-                        ₹ {it.calc.sgstAmount.toFixed(2)}
+                        ₹ {Math.round(it.calc.sgstAmount).toLocaleString()}
                       </td>
                       <td className="py-3 px-3 font-mono font-extrabold text-emerald-700 text-right">
-                        ₹ {(it.netTotal || 0).toLocaleString()}
+                        ₹ {Math.round(it.netTotal || 0).toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -307,27 +307,27 @@ export default function DailySaleDetailPage() {
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Raw Subtotal (Taxable):</span>
-                <span className="font-bold text-slate-900">₹ {gstSummary.totalRawAmount.toFixed(2)}</span>
+                <span className="font-bold text-slate-900">₹ {Math.round(gstSummary.totalRawAmount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-blue-700">
                 <span>CGST Total:</span>
-                <span className="font-bold text-blue-900">₹ {gstSummary.totalCgstAmount.toFixed(2)}</span>
+                <span className="font-bold text-blue-900">₹ {Math.round(gstSummary.totalCgstAmount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-blue-700">
                 <span>SGST Total:</span>
-                <span className="font-bold text-blue-900">₹ {gstSummary.totalSgstAmount.toFixed(2)}</span>
+                <span className="font-bold text-blue-900">₹ {Math.round(gstSummary.totalSgstAmount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-slate-700">
                 <span>Total GST Tax:</span>
-                <span className="font-bold text-amber-800">₹ {gstSummary.totalGstAmount.toFixed(2)}</span>
+                <span className="font-bold text-amber-800">₹ {Math.round(gstSummary.totalGstAmount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Extra Charges:</span>
-                <span className="font-bold text-slate-900">₹ {(gstSummary.extraCharges || 0).toFixed(2)}</span>
+                <span className="font-bold text-slate-900">₹ {Math.round(gstSummary.extraCharges || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-base font-extrabold text-emerald-800 pt-2 border-t border-slate-200">
                 <span>Grand Total:</span>
-                <span>₹ {gstSummary.calculatedGrandTotal.toFixed(2)}</span>
+                <span>₹ {Math.round(gstSummary.calculatedGrandTotal).toLocaleString()}</span>
               </div>
             </div>
           </div>

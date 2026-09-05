@@ -152,7 +152,7 @@ export default function BillDetailPage() {
           Invoice Bill Record Not Found
         </div>
         <Link
-          href="/admin/bills"
+          href="/admin/debt"
           className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -170,7 +170,7 @@ export default function BillDetailPage() {
       {/* Navigation Top Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <Link
-          href="/admin/bills"
+          href="/admin/debt"
           className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold text-xs bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors border border-slate-200"
         >
           <ArrowLeft className="w-4 h-4" />

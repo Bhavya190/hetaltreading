@@ -11,17 +11,12 @@ export async function GET(
     const id = decodeURIComponent(rawParams.id)
 
     // 1. Try finding DailySale by id or billNumber
-    let dailySale = await (prisma as any).dailySale.findUnique({
-      where: { id },
+    let dailySale = await (prisma as any).dailySale.findFirst({
+      where: {
+        OR: [{ id }, { billNumber: id }],
+      },
       include: { items: true },
-    })
-
-    if (!dailySale) {
-      dailySale = await (prisma as any).dailySale.findFirst({
-        where: { billNumber: id },
-        include: { items: true },
-      })
-    }
+    }).catch(() => null)
 
     if (dailySale) {
       return NextResponse.json({
@@ -32,9 +27,9 @@ export async function GET(
           billNumber: dailySale.billNumber,
           date: dailySale.date ? new Date(dailySale.date).toISOString().split('T')[0] : '',
           customerName: dailySale.customerName,
-          subtotal: dailySale.subtotal || 0,
-          extraCharges: dailySale.extraCharges || 0,
-          grandTotal: dailySale.grandTotal || 0,
+          subtotal: Math.round(dailySale.subtotal || 0),
+          extraCharges: Math.round(dailySale.extraCharges || 0),
+          grandTotal: Math.round(dailySale.grandTotal || 0),
           status: dailySale.status || 'COMPLETED',
           items: Array.isArray(dailySale.items) ? dailySale.items : [],
         },
@@ -42,15 +37,11 @@ export async function GET(
     }
 
     // 2. Try finding in Commercial Bill table
-    let bill = await (prisma as any).bill.findUnique({
-      where: { id },
-    })
-
-    if (!bill) {
-      bill = await (prisma as any).bill.findFirst({
-        where: { billNumber: id },
-      })
-    }
+    let bill = await (prisma as any).bill.findFirst({
+      where: {
+        OR: [{ id }, { billNumber: id }],
+      },
+    }).catch(() => null)
 
     if (bill) {
       const items = [
@@ -61,10 +52,10 @@ export async function GET(
           gstRate: '18',
           unit: 'Lot',
           quantity: 1,
-          unitPrice: bill.amount || 0,
-          amount: bill.amount || 0,
+          unitPrice: Math.round(bill.amount || 0),
+          amount: Math.round(bill.amount || 0),
           discount: 0,
-          netTotal: bill.amount || 0,
+          netTotal: Math.round(bill.amount || 0),
         },
       ]
 
@@ -76,9 +67,9 @@ export async function GET(
           billNumber: bill.billNumber || bill.id,
           date: bill.date ? new Date(bill.date).toISOString().split('T')[0] : '',
           customerName: bill.customer || 'Customer',
-          subtotal: bill.amount || 0,
+          subtotal: Math.round(bill.amount || 0),
           extraCharges: 0,
-          grandTotal: bill.amount || 0,
+          grandTotal: Math.round(bill.amount || 0),
           status: bill.status || 'PAID',
           items,
         },
@@ -86,15 +77,11 @@ export async function GET(
     }
 
     // 3. Try finding in PurchaseOrder table
-    let purchase = await (prisma as any).purchaseOrder.findUnique({
-      where: { id },
-    })
-
-    if (!purchase) {
-      purchase = await (prisma as any).purchaseOrder.findFirst({
-        where: { orderNumber: id },
-      })
-    }
+    let purchase = await (prisma as any).purchaseOrder.findFirst({
+      where: {
+        OR: [{ id }, { orderNumber: id }],
+      },
+    }).catch(() => null)
 
     if (purchase) {
       const qty = purchase.quantity || 1
@@ -108,9 +95,9 @@ export async function GET(
           unit: 'Lot',
           quantity: qty,
           unitPrice: unitPrice,
-          amount: purchase.totalAmount || 0,
+          amount: Math.round(purchase.totalAmount || 0),
           discount: purchase.discount || 0,
-          netTotal: purchase.totalAmount || 0,
+          netTotal: Math.round(purchase.totalAmount || 0),
         },
       ]
 
@@ -122,9 +109,9 @@ export async function GET(
           billNumber: purchase.orderNumber || purchase.id,
           date: purchase.date ? new Date(purchase.date).toISOString().split('T')[0] : '',
           customerName: purchase.vendor || 'Supplier Vendor',
-          subtotal: purchase.totalAmount || 0,
-          extraCharges: purchase.extraCharges || 0,
-          grandTotal: (purchase.totalAmount || 0) + (purchase.extraCharges || 0),
+          subtotal: Math.round(purchase.totalAmount || 0),
+          extraCharges: Math.round(purchase.extraCharges || 0),
+          grandTotal: Math.round((purchase.totalAmount || 0) + (purchase.extraCharges || 0)),
           status: purchase.status || 'DELIVERED',
           items,
         },
@@ -132,25 +119,20 @@ export async function GET(
     }
 
     // 4. Try finding in DebtTransaction table
-    let debtTxn = await (prisma as any).debtTransaction.findUnique({
-      where: { id },
+    let debtTxn = await (prisma as any).debtTransaction.findFirst({
+      where: {
+        OR: [{ id }, { billNumber: id }],
+      },
       include: { deptAccount: true },
-    })
-
-    if (!debtTxn) {
-      debtTxn = await (prisma as any).debtTransaction.findFirst({
-        where: { billNumber: id },
-        include: { deptAccount: true },
-      })
-    }
+    }).catch(() => null)
 
     if (debtTxn) {
       if (debtTxn.deptAccountId) {
-        await recalculateDeptAccountLedger(debtTxn.deptAccountId)
+        await recalculateDeptAccountLedger(debtTxn.deptAccountId).catch(() => null)
         debtTxn = await (prisma as any).debtTransaction.findUnique({
           where: { id: debtTxn.id },
           include: { deptAccount: true },
-        })
+        }).catch(() => debtTxn)
       }
     }
 
@@ -159,7 +141,7 @@ export async function GET(
       const matchingDailySale = await (prisma as any).dailySale.findFirst({
         where: { billNumber: debtTxn.billNumber },
         include: { items: true },
-      })
+      }).catch(() => null)
 
       if (matchingDailySale && Array.isArray(matchingDailySale.items) && matchingDailySale.items.length > 0) {
         return NextResponse.json({
@@ -170,12 +152,12 @@ export async function GET(
             billNumber: debtTxn.billNumber,
             date: debtTxn.date ? new Date(debtTxn.date).toISOString().split('T')[0] : '',
             customerName: debtTxn.deptAccount?.customerName || matchingDailySale.customerName || 'Debt Customer',
-            subtotal: matchingDailySale.subtotal || debtTxn.billAmount,
-            extraCharges: matchingDailySale.extraCharges || 0,
-            grandTotal: matchingDailySale.grandTotal || debtTxn.billAmount,
+            subtotal: Math.round(matchingDailySale.subtotal || debtTxn.billAmount),
+            extraCharges: Math.round(matchingDailySale.extraCharges || 0),
+            grandTotal: Math.round(matchingDailySale.grandTotal || debtTxn.billAmount),
             status: debtTxn.paymentStatus || 'PENDING',
-            paidAmount: debtTxn.paidAmount,
-            balanceAmount: debtTxn.balanceAmount,
+            paidAmount: Math.round(debtTxn.paidAmount),
+            balanceAmount: Math.round(debtTxn.balanceAmount),
             items: matchingDailySale.items,
           },
         })
@@ -194,7 +176,7 @@ export async function GET(
             const qty = parseFloat(match[2]) || 1
             const unit = match[3].trim() || 'Piece'
             const price = parseFloat(match[4]) || 0
-            const amt = qty * price
+            const amt = Math.round(qty * price)
             items.push({
               id: `${debtTxn.id}-${idx}`,
               productName: pName,
@@ -208,7 +190,7 @@ export async function GET(
               netTotal: amt,
             })
           } else {
-            const itemShare = debtTxn.billAmount / parts.length
+            const itemShare = Math.round(debtTxn.billAmount / parts.length)
             items.push({
               id: `${debtTxn.id}-${idx}`,
               productName: part,
@@ -233,10 +215,10 @@ export async function GET(
           gstRate: '18',
           unit: 'Lot',
           quantity: 1,
-          unitPrice: debtTxn.billAmount || 0,
-          amount: debtTxn.billAmount || 0,
+          unitPrice: Math.round(debtTxn.billAmount || 0),
+          amount: Math.round(debtTxn.billAmount || 0),
           discount: 0,
-          netTotal: debtTxn.billAmount || 0,
+          netTotal: Math.round(debtTxn.billAmount || 0),
         })
       }
 
@@ -248,12 +230,12 @@ export async function GET(
           billNumber: debtTxn.billNumber,
           date: debtTxn.date ? new Date(debtTxn.date).toISOString().split('T')[0] : '',
           customerName: debtTxn.deptAccount?.customerName || 'Debt Customer',
-          subtotal: debtTxn.billAmount || 0,
+          subtotal: Math.round(debtTxn.billAmount || 0),
           extraCharges: 0,
-          grandTotal: debtTxn.billAmount || 0,
+          grandTotal: Math.round(debtTxn.billAmount || 0),
           status: debtTxn.paymentStatus || 'PENDING',
-          paidAmount: debtTxn.paidAmount,
-          balanceAmount: debtTxn.balanceAmount,
+          paidAmount: Math.round(debtTxn.paidAmount || 0),
+          balanceAmount: Math.round(debtTxn.balanceAmount || 0),
           items,
         },
       })

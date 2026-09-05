@@ -16,8 +16,33 @@ export async function recalculateDeptAccountLedger(deptAccountId: string) {
 
     if (!account) return null
 
-    const txns = account.transactions || []
-    const payments = account.payments || []
+    let txns = account.transactions || []
+    let payments = account.payments || []
+
+    // Step 0: Auto-heal missing payment logs for transactions created with initial paidAmount
+    const totalPaymentsSum = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
+    const txnsWithInitialPaid = txns.filter((t: any) => (t.paidAmount || 0) > 0)
+    const totalInitialTxnPaid = txnsWithInitialPaid.reduce((sum: number, t: any) => sum + (t.paidAmount || 0), 0)
+
+    if (payments.length === 0 && totalInitialTxnPaid > 0) {
+      for (const t of txnsWithInitialPaid) {
+        try {
+          const newPayment = await (prisma as any).debtPayment.create({
+            data: {
+              deptAccountId,
+              date: t.date ? new Date(t.date) : new Date(),
+              paymentType: 'CASH',
+              amount: t.paidAmount,
+              note: 'Initial payment logged during bill issuance',
+              appliedBillNo: `Bill #${t.billNumber}`,
+            },
+          })
+          payments.push(newPayment)
+        } catch (e) {
+          console.warn('Failed to auto-heal payment log:', e)
+        }
+      }
+    }
 
     const totalDebtAmount = txns.reduce((sum: number, t: any) => sum + (t.billAmount || 0), 0)
     const totalPaidAmount = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
@@ -68,37 +93,56 @@ export async function recalculateDeptAccountLedger(deptAccountId: string) {
       unallocatedPaymentPool -= fill
     }
 
-    // Step C: Update each transaction in DB
+    // Step C: Only update transaction in DB if allocation changed (performance optimization)
     for (const t of txns) {
       const paid = txnAllocations[t.id] || 0
       const bal = Math.max(0, t.billAmount - paid)
       const status = (bal === 0 && t.billAmount > 0) ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'PENDING')
 
-      await (prisma as any).debtTransaction.update({
-        where: { id: t.id },
-        data: {
-          paidAmount: paid,
-          balanceAmount: bal,
-          paymentStatus: status,
-        },
-      })
+      if (t.paidAmount !== paid || t.balanceAmount !== bal || t.paymentStatus !== status) {
+        await (prisma as any).debtTransaction.update({
+          where: { id: t.id },
+          data: {
+            paidAmount: paid,
+            balanceAmount: bal,
+            paymentStatus: status,
+          },
+        })
+        t.paidAmount = paid
+        t.balanceAmount = bal
+        t.paymentStatus = status
+      }
     }
 
-    // Step D: Update DeptAccount totals in DB
-    const updatedAccount = await (prisma as any).deptAccount.update({
-      where: { id: deptAccountId },
-      data: {
-        totalDebtAmount,
-        totalPaidAmount,
-        balanceDue,
-      },
-      include: {
-        transactions: { orderBy: { date: 'desc' } },
-        payments: { orderBy: { date: 'desc' } },
-      },
-    })
+    // Step D: Only update DeptAccount totals in DB if totals changed (performance optimization)
+    if (
+      account.totalDebtAmount !== totalDebtAmount ||
+      account.totalPaidAmount !== totalPaidAmount ||
+      account.balanceDue !== balanceDue
+    ) {
+      const updatedAccount = await (prisma as any).deptAccount.update({
+        where: { id: deptAccountId },
+        data: {
+          totalDebtAmount,
+          totalPaidAmount,
+          balanceDue,
+        },
+        include: {
+          transactions: { orderBy: { date: 'desc' } },
+          payments: { orderBy: { date: 'desc' } },
+        },
+      })
+      return updatedAccount
+    }
 
-    return updatedAccount
+    return {
+      ...account,
+      totalDebtAmount,
+      totalPaidAmount,
+      balanceDue,
+      transactions: [...txns].reverse(),
+      payments: [...payments].reverse(),
+    }
   } catch (err) {
     console.error('Error recalculating dept account ledger:', err)
     return null
