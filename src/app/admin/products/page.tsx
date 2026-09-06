@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Package, Plus, Search, X, Loader2, Tag, Percent, Pencil, Trash2, Share2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Package, Plus, Search, X, Loader2, Tag, Percent, Pencil, Trash2, Share2, ChevronDown, Check } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
 import { exportToExcel, exportToPDF, printReport, shareOnWhatsApp } from '@/lib/exportUtils'
 
@@ -18,6 +18,132 @@ export interface ProductRecord {
   inStock?: boolean
 }
 
+const BASE_UNITS = [
+  'Kilogram',
+  'Kg',
+  'Gram',
+  'Meter',
+  'Liter',
+  'Milliliter',
+  'Pieces',
+  'Bags',
+  'Ton',
+  'Boxes',
+  'Drum',
+  'Bottle',
+  'Pouch',
+  'Set',
+  'Pack',
+  'Roll',
+  'Dozen',
+]
+
+function UnitCombobox({
+  value,
+  onChange,
+  existingUnits,
+}: {
+  value: string
+  onChange: (val: string) => void
+  existingUnits: string[]
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState(value)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setSearch(value)
+  }, [value])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filtered = existingUnits.filter((u) =>
+    u.toLowerCase().includes((search || '').toLowerCase())
+  )
+
+  const isExactMatch = existingUnits.some(
+    (u) => u.toLowerCase() === (search || '').trim().toLowerCase()
+  )
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          value={search}
+          onFocus={() => setIsOpen(true)}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            onChange(e.target.value)
+            setIsOpen(true)
+          }}
+          placeholder="Search or type unit..."
+          className="w-full border border-slate-300 rounded-xl pl-3 pr-7 py-2 text-slate-900 focus:outline-none focus:border-amber-600 bg-white"
+        />
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5"
+          tabIndex={-1}
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl text-xs py-1 divide-y divide-slate-100">
+          {search && search.trim() && !isExactMatch && (
+            <button
+              type="button"
+              onClick={() => {
+                const newUnit = search.trim()
+                onChange(newUnit)
+                setSearch(newUnit)
+                setIsOpen(false)
+              }}
+              className="w-full text-left px-3 py-2 text-amber-800 font-bold bg-amber-50 hover:bg-amber-100 flex items-center justify-between transition-colors"
+            >
+              <span>+ Create & Store "{search.trim()}"</span>
+              <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-extrabold">New Unit</span>
+            </button>
+          )}
+          {filtered.length > 0 ? (
+            filtered.map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => {
+                  onChange(u)
+                  setSearch(u)
+                  setIsOpen(false)
+                }}
+                className={`w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center justify-between font-medium transition-colors ${
+                  value === u ? 'bg-amber-50 text-amber-900 font-bold' : 'text-slate-700'
+                }`}
+              >
+                <span>{u}</span>
+                {value === u && <Check className="w-3.5 h-3.5 text-amber-600" />}
+              </button>
+            ))
+          ) : (
+            !search?.trim() && (
+              <div className="px-3 py-2 text-slate-400 text-center text-[11px]">Type to search or add custom unit</div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<ProductRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,14 +155,35 @@ export default function AdminProductsPage() {
   const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(null)
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 
+  const existingUnits = Array.from(
+    new Set([
+      ...BASE_UNITS,
+      ...products.map((p) => p.unit).filter((u): u is string => Boolean(u && u.trim())),
+    ])
+  )
+
   // Form State
   const [hsnCode, setHsnCode] = useState('')
   const [name, setName] = useState('')
   const [purchasePrice, setPurchasePrice] = useState('')
   const [unit, setUnit] = useState('Kilogram')
+  const [showUnitInName, setShowUnitInName] = useState(false)
   const [inventoryStock, setInventoryStock] = useState('')
   const [sellingPrice, setSellingPrice] = useState('')
   const [gstRate, setGstRate] = useState('18')
+
+  const computeFinalName = (inputName: string, inputUnit: string, appendUnit: boolean) => {
+    const cleanName = inputName.trim()
+    const cleanUnit = inputUnit.trim()
+    if (!cleanName) return ''
+    if (!appendUnit || !cleanUnit) return cleanName
+
+    const suffix = `(${cleanUnit})`
+    if (cleanName.endsWith(suffix)) return cleanName
+
+    const baseName = cleanName.replace(/\s*\(([^)]+)\)$/, '').trim()
+    return `${baseName} (${cleanUnit})`
+  }
 
   const fetchProducts = async () => {
     try {
@@ -65,6 +212,7 @@ export default function AdminProductsPage() {
     setName('')
     setPurchasePrice('')
     setUnit('Kilogram')
+    setShowUnitInName(false)
     setInventoryStock('')
     setSellingPrice('')
     setGstRate('18')
@@ -75,9 +223,10 @@ export default function AdminProductsPage() {
     if (!name) return
 
     setSaving(true)
+    const finalName = computeFinalName(name, unit, showUnitInName)
     const payload = {
       hsnCode: hsnCode || '2804',
-      name,
+      name: finalName,
       purchasePrice,
       unit,
       inventoryStock,
@@ -109,9 +258,20 @@ export default function AdminProductsPage() {
   const openEditModal = (prod: ProductRecord) => {
     setEditingProduct(prod)
     setHsnCode(prod.hsnCode || prod.serialNumber || '')
-    setName(prod.name || '')
+    const currentUnit = prod.unit || 'Kg'
+    setUnit(currentUnit)
+
+    const rawName = prod.name || ''
+    const match = rawName.match(/\s*\(([^)]+)\)$/)
+    if (match) {
+      setShowUnitInName(true)
+      setName(rawName.replace(/\s*\(([^)]+)\)$/, '').trim())
+    } else {
+      setShowUnitInName(false)
+      setName(rawName)
+    }
+
     setPurchasePrice(prod.purchasePrice ? String(prod.purchasePrice) : '')
-    setUnit(prod.unit || 'Kg')
     setInventoryStock(prod.inventoryStock ? String(prod.inventoryStock) : '')
     setSellingPrice(prod.sellingPrice ? String(prod.sellingPrice) : '')
     setGstRate(prod.gstRate ? String(prod.gstRate) : '18')
@@ -122,9 +282,10 @@ export default function AdminProductsPage() {
     if (!editingProduct) return
 
     setSaving(true)
+    const finalName = computeFinalName(name, unit, showUnitInName)
     const payload = {
       hsnCode: hsnCode || '2804',
-      name,
+      name: finalName,
       purchasePrice,
       unit,
       inventoryStock,
@@ -485,19 +646,7 @@ export default function AdminProductsPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Unit</label>
-                  <select
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 bg-white"
-                  >
-                    <option value="Kilogram">Kilogram</option>
-                    <option value="Gram">Gram</option>
-                    <option value="Meter">Meter</option>
-                    <option value="Liter">Liter</option>
-                    <option value="Milileter">Milileter</option>
-                    <option value="Pieces">Pieces</option>
-                    <option value="Bags">Bags</option>
-                  </select>
+                  <UnitCombobox value={unit} onChange={setUnit} existingUnits={existingUnits} />
                 </div>
 
                 <div>
@@ -523,6 +672,30 @@ export default function AdminProductsPage() {
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-amber-600 font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Option to display unit with product name */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 mt-2">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={showUnitInName}
+                    onChange={(e) => setShowUnitInName(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span>Display unit with product name</span>
+                </label>
+                <p className="text-[11px] text-slate-500 pl-6">
+                  Appends unit to product name to distinguish quantity packs (e.g. 1 Lit vs 4 Lit).
+                </p>
+                {showUnitInName && (
+                  <div className="pl-6 pt-1 text-[11px] font-bold text-amber-800 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-slate-500 font-normal">Full Display Title:</span>
+                    <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300 font-mono font-bold">
+                      {computeFinalName(name, unit, true) || 'Product Name (Unit)'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex justify-end gap-2">
