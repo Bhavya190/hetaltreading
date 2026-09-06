@@ -91,12 +91,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Daily Sale', href: '/admin/daily-sale', icon: TrendingUp },
     { name: 'Purchase', href: '/admin/purchase', icon: ShoppingBag },
     { name: 'Vendor Debt', href: '/admin/vendor-debt', icon: Wallet },
-    { name: 'Bills', href: '/admin/bills', icon: Receipt },
-    { name: 'Vendors', href: '/admin/vendors', icon: Truck },
     { name: 'Customer Debt', href: '/admin/debt', icon: BookOpen },
+    { name: 'Bills', href: '/admin/bills', icon: Receipt },
     { name: 'Products', href: '/admin/products', icon: Package },
     { name: 'Customers', href: '/admin/customers', icon: Users },
-    { name: 'Quotations', href: '/admin/quotations', icon: FileText },
+    { name: 'Vendors', href: '/admin/vendors', icon: Truck },
   ]
 
   return (
