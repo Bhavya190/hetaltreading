@@ -62,9 +62,32 @@ export async function DELETE(
     const rawParams = await params
     const id = decodeURIComponent(rawParams.id)
 
-    const result = await (prisma as any).vendor.deleteMany({
-      where: { id },
+    const targetVendor = await (prisma as any).vendor.findFirst({
+      where: { OR: [{ id }, { vendorCode: id }] },
     })
+
+    const result = await (prisma as any).vendor.deleteMany({
+      where: { OR: [{ id }, { vendorCode: id }] },
+    })
+
+    if (targetVendor) {
+      await (prisma as any).vendorDebtPayment.deleteMany({
+        where: { vendorAccount: { vendorName: { equals: targetVendor.name, mode: 'insensitive' } } }
+      }).catch(() => null)
+
+      await (prisma as any).vendorDebtTransaction.deleteMany({
+        where: { vendorAccount: { vendorName: { equals: targetVendor.name, mode: 'insensitive' } } }
+      }).catch(() => null)
+
+      await (prisma as any).vendorAccount.deleteMany({
+        where: {
+          OR: [
+            { vendorName: { equals: targetVendor.name, mode: 'insensitive' } },
+            ...(targetVendor.vendorCode ? [{ vendorCode: targetVendor.vendorCode }] : []),
+          ],
+        },
+      }).catch(() => null)
+    }
 
     return NextResponse.json({ success: true, count: result.count, message: 'Vendor deleted successfully' })
   } catch (error: any) {

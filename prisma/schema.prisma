@@ -225,6 +225,47 @@ model Bill {
   updatedAt     DateTime @updatedAt
 }
 
+model VendorAccount {
+  id              String                  @id @default(cuid())
+  vendorName      String
+  vendorCode      String?
+  contactPerson   String?
+  phone           String?
+  city            String?
+  totalDebtAmount Float                   @default(0)
+  totalPaidAmount Float                   @default(0)
+  balanceDue      Float                   @default(0)
+  status          String                  @default("ACTIVE")
+  transactions    VendorDebtTransaction[]
+  payments        VendorDebtPayment[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+}
 
+model VendorDebtTransaction {
+  id              String        @id @default(cuid())
+  vendorAccountId String
+  vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
+  billNumber      String
+  date            DateTime      @default(now())
+  itemsSummary    String
+  billAmount      Float
+  paidAmount      Float         @default(0)
+  balanceAmount   Float
+  paymentStatus   String        @default("PENDING")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
 
-
+model VendorDebtPayment {
+  id              String        @id @default(cuid())
+  vendorAccountId String
+  vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
+  date            DateTime      @default(now())
+  paymentType     String        @default("CASH") // CASH, CHEQUE, UPI, BANK_TRANSFER
+  amount          Float
+  note            String?
+  appliedBillNo   String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}

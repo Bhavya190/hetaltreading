@@ -53,10 +53,10 @@ export async function POST(request: Request) {
         item,
         productId: productId || null,
         quantity: parseFloat(quantity) || 1,
-        discount: parseFloat(discount) || 0,
+        discount: Math.max(0, parseFloat(discount) || 0),
         totalAmount: parseFloat(totalAmount) || 0,
         extraCharges: parseFloat(extraCharges) || 0,
-        extraChargesGst: parseFloat(extraChargesGst) || 18,
+        extraChargesGst: Math.max(0, parseFloat(extraChargesGst) || 0),
         status: status || 'DELIVERED',
       },
     })
@@ -92,6 +92,65 @@ export async function POST(request: Request) {
           console.error(`Failed to update stock for product ${targetProdId}:`, e)
         }
       }
+    }
+
+    // Automatically sync with Vendor Debt Account & Ledger!
+    try {
+      let vAccount = await (prisma as any).vendorAccount.findFirst({
+        where: {
+          OR: [
+            { vendorName: { equals: vendor, mode: 'insensitive' } },
+            ...(vendorId ? [{ id: vendorId }] : []),
+          ],
+        },
+      })
+
+      if (!vAccount) {
+        vAccount = await (prisma as any).vendorAccount.create({
+          data: {
+            vendorName: vendor,
+            vendorCode: vendorId ? `VEND-${vendorId.slice(0, 4)}` : `VEND-${Math.floor(100 + Math.random() * 900)}`,
+            totalDebtAmount: 0,
+            totalPaidAmount: 0,
+            balanceDue: 0,
+            status: 'ACTIVE',
+          },
+        })
+      }
+
+      const totAmt = parseFloat(totalAmount) || 0
+      const initialPaid = parseFloat(body.paidAmount || 0)
+
+      await (prisma as any).vendorDebtTransaction.create({
+        data: {
+          vendorAccountId: vAccount.id,
+          billNumber: orderNumber,
+          date: date ? new Date(date) : new Date(),
+          itemsSummary: item,
+          billAmount: totAmt,
+          paidAmount: initialPaid,
+          balanceAmount: Math.max(0, totAmt - initialPaid),
+          paymentStatus: initialPaid >= totAmt && totAmt > 0 ? 'PAID' : initialPaid > 0 ? 'PARTIAL' : 'PENDING',
+        },
+      })
+
+      if (initialPaid > 0) {
+        await (prisma as any).vendorDebtPayment.create({
+          data: {
+            vendorAccountId: vAccount.id,
+            date: date ? new Date(date) : new Date(),
+            paymentType: body.paymentType || 'CASH',
+            amount: initialPaid,
+            note: 'Initial payment during purchase entry creation',
+            appliedBillNo: `PO #${orderNumber}`,
+          },
+        })
+      }
+
+      const { recalculateVendorAccountLedger } = await import('@/lib/vendorAccountUtils')
+      await recalculateVendorAccountLedger(vAccount.id)
+    } catch (vErr) {
+      console.warn('Failed to sync purchase with Vendor Account:', vErr)
     }
 
     return NextResponse.json({ success: true, data: order }, { status: 201 })

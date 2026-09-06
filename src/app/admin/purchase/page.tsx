@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   ShoppingBag,
   Plus,
@@ -19,6 +20,7 @@ import {
   ArrowLeft,
   Layers,
   Share2,
+  Wallet,
 } from 'lucide-react'
 import ExportActionBar from '@/components/ExportActionBar'
 import DateRangeFilter, { DateFilterMode, filterRecordsByDate } from '@/components/DateRangeFilter'
@@ -54,6 +56,7 @@ export interface VendorOption {
   id: string
   name: string
   vendorCode?: string
+  contactPerson?: string
   phone?: string
   city?: string
 }
@@ -128,7 +131,7 @@ export default function PurchasePage() {
 
   const [totalAmount, setTotalAmount] = useState('')
   const [extraCharges, setExtraCharges] = useState('')
-  const [extraChargesGst, setExtraChargesGst] = useState('18')
+  const [extraChargesGst, setExtraChargesGst] = useState('0')
 
   // Fetch Purchases, Products, and Vendors
   const fetchData = async () => {
@@ -152,7 +155,7 @@ export default function PurchasePage() {
             discount: p.discount || 0,
             totalAmount: p.totalAmount || 0,
             extraCharges: p.extraCharges || 0,
-            extraChargesGst: p.extraChargesGst || 18,
+            extraChargesGst: p.extraChargesGst !== undefined ? p.extraChargesGst : 0,
             status: p.status || 'DELIVERED',
           }))
         )
@@ -186,6 +189,7 @@ export default function PurchasePage() {
             id: v.id,
             name: v.name,
             vendorCode: v.vendorCode || '',
+            contactPerson: v.contactPerson || '',
             phone: v.phone || '',
             city: v.city || '',
           }))
@@ -232,8 +236,8 @@ export default function PurchasePage() {
     const pricePerUnit = matchedProduct ? matchedProduct.purchasePrice : 0
     const prodGstRate = matchedProduct ? matchedProduct.gstRate : 18
 
-    const q = parseFloat(line.quantity) || 0
-    const d = parseFloat(line.discount) || 0
+    const q = Math.max(0, parseFloat(line.quantity) || 0)
+    const d = Math.max(0, parseFloat(line.discount) || 0)
 
     const rawSubtotal = q * pricePerUnit
     const discAmount = rawSubtotal * (d / 100)
@@ -288,7 +292,7 @@ export default function PurchasePage() {
     setItemLines([createEmptyItemLine()])
     setTotalAmount('')
     setExtraCharges('')
-    setExtraChargesGst('18')
+    setExtraChargesGst('0')
   }
 
   // Handle Save New Purchase
@@ -323,7 +327,7 @@ export default function PurchasePage() {
         discount: validLines[0]?.d || 0,
         totalAmount: parseFloat(totalAmount) || calculatedGrandTotal,
         extraCharges: parseFloat(extraCharges) || 0,
-        extraChargesGst: parseFloat(extraChargesGst) || 18,
+        extraChargesGst: parseFloat(extraChargesGst) || 0,
         status: 'DELIVERED',
         items: validLines.map((l) => ({
           productId: l.productId,
@@ -388,7 +392,7 @@ export default function PurchasePage() {
 
     setTotalAmount(p.totalAmount ? String(p.totalAmount) : '')
     setExtraCharges(p.extraCharges ? String(p.extraCharges) : '')
-    setExtraChargesGst(p.extraChargesGst ? String(p.extraChargesGst) : '18')
+    setExtraChargesGst(p.extraChargesGst !== undefined && p.extraChargesGst !== null ? String(p.extraChargesGst) : '0')
   }
 
   // Handle Update Purchase
@@ -422,7 +426,7 @@ export default function PurchasePage() {
         discount: validLines[0]?.d || 0,
         totalAmount: parseFloat(totalAmount) || calculatedGrandTotal,
         extraCharges: parseFloat(extraCharges) || 0,
-        extraChargesGst: parseFloat(extraChargesGst) || 18,
+        extraChargesGst: parseFloat(extraChargesGst) || 0,
         status: editingPurchase.status || 'DELIVERED',
       }
 
@@ -594,7 +598,15 @@ export default function PurchasePage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/admin/vendor-debt"
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2"
+          >
+            <Wallet className="w-4 h-4 text-amber-400" />
+            <span>Vendor Debt Accounts</span>
+          </Link>
+
           <button
             onClick={() => {
               resetForm()
@@ -1060,6 +1072,12 @@ export default function PurchasePage() {
                     <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">SELECTED VENDOR:</span>
                     <span className="font-extrabold text-slate-900">{selectedVend.name}</span>
                   </div>
+                  {selectedVend.contactPerson && (
+                    <div className="flex justify-between">
+                      <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">CONTACT PERSON:</span>
+                      <span className="font-semibold text-slate-900">{selectedVend.contactPerson}</span>
+                    </div>
+                  )}
                   {selectedVend.phone && (
                     <div className="flex justify-between">
                       <span className="uppercase text-[10px] tracking-wider text-slate-400 font-extrabold">MOBILE NUMBER:</span>
@@ -1257,10 +1275,11 @@ export default function PurchasePage() {
                             </label>
                             <input
                               type="number"
+                              min="0"
                               step="any"
                               placeholder="e.g. 10"
                               value={line.discount}
-                              onChange={(e) => updateItemLine(line.id, { discount: e.target.value })}
+                              onChange={(e) => updateItemLine(line.id, { discount: e.target.value.replace(/-/g, '') })}
                               className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-hidden bg-white shadow-2xs font-mono text-slate-900"
                             />
                           </div>

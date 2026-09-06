@@ -21,7 +21,8 @@ import {
   LogOut,
   ChevronRight,
   ShieldCheck,
-  ArrowLeft
+  ArrowLeft,
+  Wallet
 } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -89,9 +90,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Daily Sale', href: '/admin/daily-sale', icon: TrendingUp },
     { name: 'Purchase', href: '/admin/purchase', icon: ShoppingBag },
+    { name: 'Vendor Debt', href: '/admin/vendor-debt', icon: Wallet },
     { name: 'Bills', href: '/admin/bills', icon: Receipt },
     { name: 'Vendors', href: '/admin/vendors', icon: Truck },
-    { name: 'Debt', href: '/admin/debt', icon: BookOpen },
+    { name: 'Customer Debt', href: '/admin/debt', icon: BookOpen },
     { name: 'Products', href: '/admin/products', icon: Package },
     { name: 'Customers', href: '/admin/customers', icon: Users },
     { name: 'Quotations', href: '/admin/quotations', icon: FileText },

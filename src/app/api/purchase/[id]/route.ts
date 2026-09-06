@@ -17,10 +17,10 @@ export async function PUT(
       item: body.item,
       productId: body.productId || null,
       quantity: parseFloat(body.quantity) || 1,
-      discount: parseFloat(body.discount) || 0,
+      discount: Math.max(0, parseFloat(body.discount) || 0),
       totalAmount: parseFloat(body.totalAmount) || 0,
       extraCharges: parseFloat(body.extraCharges) || 0,
-      extraChargesGst: parseFloat(body.extraChargesGst) || 18,
+      extraChargesGst: Math.max(0, parseFloat(body.extraChargesGst) || 0),
       status: body.status || 'DELIVERED',
     }
 
